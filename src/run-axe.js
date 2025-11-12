@@ -13,11 +13,15 @@ async function run(url, outFile, options = {}) {
     const browserType = playwright[browserName];
     let browser = await browserType.launch({ headless: true });
     // Use a common desktop user agent and allow insecure certs to reduce navigation errors on some sites
-    let context = await browser.newContext({
+    // If zoom is requested and method includes 'dpr', set deviceScaleFactor to 2
+    const deviceScale = (options.zoom && (options.zoomMethod === 'dpr' || options.zoomMethod === 'both')) ? 2 : undefined;
+    const newContextOpts = {
       userAgent: options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
       ignoreHTTPSErrors: true,
       extraHTTPHeaders: options.extraHTTPHeaders || { 'accept-language': 'en-US,en;q=0.9' }
-    });
+    };
+    if (deviceScale) newContextOpts.deviceScaleFactor = deviceScale;
+    let context = await browser.newContext(newContextOpts);
     let page = await context.newPage();
 
   if (options.cookies) {
@@ -57,11 +61,14 @@ async function run(url, outFile, options = {}) {
           try{ await browser.close(); }catch(e){}
           const altType = playwright[alt];
           const altBrowser = await altType.launch({ headless: true });
-          const altContext = await altBrowser.newContext({
+          // For alternative browsers, honor zoom DPR if requested
+          const altContextOpts = {
             userAgent: options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
             ignoreHTTPSErrors: true,
             extraHTTPHeaders: options.extraHTTPHeaders || { 'accept-language': 'en-US,en;q=0.9' }
-          });
+          };
+          if (deviceScale) altContextOpts.deviceScaleFactor = deviceScale;
+          const altContext = await altBrowser.newContext(altContextOpts);
           const altPage = await altContext.newPage();
           console.log('Reintentando con navegador alternativo:', alt);
           try{
@@ -108,6 +115,17 @@ async function run(url, outFile, options = {}) {
       usedJSDOM = true;
       return { outPath, htmlPath, result };
     }
+  // If using CSS zoom method, inject CSS before running axe to ensure layout changes are applied
+  if (options.zoom && (options.zoomMethod === 'css' || options.zoomMethod === 'both')){
+    try{
+      await page.addStyleTag({ content: 'html, body { zoom: 200% !important; }' });
+      // give layout a moment to settle
+      await page.waitForTimeout(200);
+    }catch(e){
+      console.warn('No se pudo aplicar CSS zoom:', e.message || e);
+    }
+  }
+
   // Inject axe-core source
   await page.addScriptTag({ content: axe.source });
 
@@ -151,7 +169,9 @@ if (require.main === module) {
     .option('runOnly', { type: 'string', describe: 'Coma-separado tags a ejecutar (ej: wcag2a,wcag2aa)' })
     .option('standard', { type: 'string', describe: 'Norma a usar (ej: "wcag21aa" o "2.1 AA"). Si no especificado, por defecto WCAG 2.1 AA', default: 'wcag21aa' })
     .option('timeout', { type: 'number', describe: 'Timeout en ms para navegación y acciones', default: 30000 })
-    .option('cookies', { type: 'string', describe: 'Ruta a JSON de cookies (formato Playwright) para autenticación' })
+  .option('cookies', { type: 'string', describe: 'Ruta a JSON de cookies (formato Playwright) para autenticación' })
+  .option('zoom200', { type: 'boolean', describe: 'Ejecutar una pasada adicional con zoom 200% (por defecto false)', default: false })
+  .option('zoomMethod', { type: 'string', describe: 'Método para zoom: dpr | css | both', choices: ['dpr','css','both'], default: 'dpr' })
     .help()
     .argv;
 
@@ -192,14 +212,15 @@ if (require.main === module) {
 
   const commonOptions = { browser: argv.browser, runOnly: runOnlyValue, timeout: argv.timeout, cookies: argv.cookies };
 
-  const runForOne = async (targetUrl, outFile) => {
+  const runForOne = async (targetUrl, outFile, overrideOpts) => {
     console.log('\n----\nProcesando URL:', targetUrl);
     try{
       // ensure output directory exists if specified
       if(outFile){
         try{ fs.mkdirSync(path.dirname(outFile), { recursive: true }); }catch(e){}
       }
-      const res = await run(targetUrl, outFile, commonOptions);
+      const opts = Object.assign({}, commonOptions, overrideOpts || {});
+      const res = await run(targetUrl, outFile, opts);
       return res;
     }catch(e){
       console.error('Error procesando', targetUrl, e.message || e);
@@ -243,6 +264,35 @@ if (require.main === module) {
               }
             }
           }
+        }
+        // If zoom run requested, perform additional run with zoom settings and write separate files
+        if(argv.zoom200){
+          try{
+            const outZoom = out ? out.replace(/\.json$/,'') + '-zoom200.json' : undefined;
+            const zoomOpts = { zoom: true, zoomMethod: argv.zoomMethod };
+            console.log('Ejecutando pasada con zoom 200% (metodo:', argv.zoomMethod + ') para', u);
+            const resZoom = await runForOne(u, outZoom, zoomOpts);
+            if(resZoom){
+              aggregate.push({ url: u + ' (zoom200)', jsonPath: resZoom.outPath, htmlPath: resZoom.htmlPath, violationsCount: (resZoom.result.violations||[]).length, passesCount: (resZoom.result.passes||[]).length });
+              // collect issues from zoom run as well
+              const violsZ = resZoom.result.violations || [];
+              for(const v of violsZ){
+                const ruleId = v.id || v.help || 'unknown';
+                for(const node of (v.nodes || [])){
+                  const selector = (node.target || []).join(' | ');
+                  const key = `${ruleId}:::${selector}`;
+                  const exHtml = (node.html || '').slice(0,200);
+                  if(!issuesMap.has(key)){
+                    issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u + ' (zoom200)']), count: 1, example: exHtml });
+                  } else {
+                    const entry = issuesMap.get(key);
+                    entry.pages.add(u + ' (zoom200)');
+                    entry.count = entry.count + 1;
+                  }
+                }
+              }
+            }
+          }catch(e){ console.warn('Error en corrida zoom para', u, e.message || e); }
         }
       }
       // write aggregate if multiple

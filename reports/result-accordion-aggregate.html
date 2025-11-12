@@ -1,0 +1,343 @@
+<!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Axe Aggregate Report</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:20px}
+      .rule-accordion, .page-accordion{width:100%;text-align:left;padding:10px;border:1px solid #ddd;background:#f7f9fc;border-radius:6px;margin-top:8px;cursor:pointer}
+      .panel{padding:8px 12px;display:none;border-left:2px solid #e6eef8;margin-bottom:8px;background:#fff}
+      .page-panel{background:#fbfdff}
+      .impact.critical{background:#7f1d1d;color:#fff;padding:2px 8px;border-radius:6px}
+      .impact.serious{background:#9a3412;color:#fff;padding:2px 8px;border-radius:6px}
+      .impact.moderate{background:#b45309;color:#fff;padding:2px 8px;border-radius:6px}
+      .impact.minor{background:#065f46;color:#fff;padding:2px 8px;border-radius:6px}
+      .small-table{width:100%;border-collapse:collapse}
+      .small-table th,.small-table td{border:1px solid #eee;padding:6px;text-align:left}
+      input[type=search]{padding:6px;margin-bottom:12px;width:100%}
+      .small{font-size:0.9em;color:#555}
+    </style>
+  </head>
+  <body>
+    <h1>Axe Aggregate Report</h1>
+    <section>
+      <h2>Summary per URL</h2>
+      <table id="reports-table">
+        <thead><tr><th>URL</th><th>Violations</th><th>Passes</th><th>JSON</th></tr></thead>
+        <tbody>
+          
+    <tr>
+      <td><a href="reports/result-accordion-https%3A%2F%2Fexample.com.html">https://example.com</a></td>
+      <td>0</td>
+      <td>8</td>
+      <td><a href="reports/result-accordion-https%3A%2F%2Fexample.com.json">JSON</a></td>
+    </tr>
+  
+
+    <tr>
+      <td><a href="reports/result-accordion-https%3A%2F%2Fwww.ford.com.html">https://www.ford.com</a></td>
+      <td>3</td>
+      <td>30</td>
+      <td><a href="reports/result-accordion-https%3A%2F%2Fwww.ford.com.json">JSON</a></td>
+    </tr>
+  
+
+    <tr>
+      <td><a href="reports/result-accordion-https%3A%2F%2Fwww.ford.ca.html">https://www.ford.ca</a></td>
+      <td>2</td>
+      <td>29</td>
+      <td><a href="reports/result-accordion-https%3A%2F%2Fwww.ford.ca.json">JSON</a></td>
+    </tr>
+  
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Issues grouped by rule</h2>
+      <p class="small">Click a rule to expand pages; click a page to see the individual selectors/examples for that page.</p>
+      <input id="filter" type="search" placeholder="Filter by rule id, help text, selector or URL..." />
+      <div id="rules-container">
+        
+      <div class="rule-accordion-block">
+        <button class="rule-accordion">aria-valid-attr-value — ARIA attributes must conform to valid values <span class="impact critical">critical</span> <small>(4 occurrences across 2 pages)</small></button>
+        <div class="panel">
+          
+        <div class="page-accordion-block">
+          <button class="page-accordion">https://www.ford.com (1) <a href="reports/result-accordion-https%3A%2F%2Fwww.ford.com.html" style="margin-left:8px; font-size:0.9em">(open)</a></button>
+          <div class="panel page-panel">
+            <table class="small-table"><thead><tr><th>Selector</th><th>Occurrences</th><th>Example</th></tr></thead><tbody>
+              
+          <tr>
+            <td>input[aria-owns=&quot;fgx-brand-searchFooterResults&quot;]</td>
+            <td>2</td>
+            <td><pre>&lt;input type=&quot;search&quot; class=&quot;search-input&quot; name=&quot;f:searchInputString&quot; aria-owns=&quot;fgx-brand-searchFooterResults&quot; aria-autocomplete=&quot;list&quot; placeholder=&quot;Search&quot; aria-label=&quot;Type your search&quot; role=&quot;textbox</pre></td>
+          </tr>
+        
+            </tbody></table>
+          </div>
+        </div>
+      
+
+        <div class="page-accordion-block">
+          <button class="page-accordion">https://www.ford.ca (1) <a href="reports/result-accordion-https%3A%2F%2Fwww.ford.ca.html" style="margin-left:8px; font-size:0.9em">(open)</a></button>
+          <div class="panel page-panel">
+            <table class="small-table"><thead><tr><th>Selector</th><th>Occurrences</th><th>Example</th></tr></thead><tbody>
+              
+          <tr>
+            <td>input[aria-owns=&quot;fgx-brand-searchFooterResults&quot;]</td>
+            <td>2</td>
+            <td><pre>&lt;input type=&quot;search&quot; class=&quot;search-input&quot; name=&quot;f:searchInputString&quot; aria-owns=&quot;fgx-brand-searchFooterResults&quot; aria-autocomplete=&quot;list&quot; placeholder=&quot;Search&quot; aria-label=&quot;Type your search&quot; role=&quot;textbox</pre></td>
+          </tr>
+        
+            </tbody></table>
+          </div>
+        </div>
+      
+        </div>
+      </div>
+    
+
+      <div class="rule-accordion-block">
+        <button class="rule-accordion">color-contrast — Elements must meet minimum color contrast ratio thresholds <span class="impact serious">serious</span> <small>(20 occurrences across 2 pages)</small></button>
+        <div class="panel">
+          
+        <div class="page-accordion-block">
+          <button class="page-accordion">https://www.ford.com (12) <a href="reports/result-accordion-https%3A%2F%2Fwww.ford.com.html" style="margin-left:8px; font-size:0.9em">(open)</a></button>
+          <div class="panel page-panel">
+            <table class="small-table"><thead><tr><th>Selector</th><th>Occurrences</th><th>Example</th></tr></thead><tbody>
+              
+          <tr>
+            <td>.gdux--lightTheme.pad-top-56.pad-bottom-none &gt; .pad-bottom-24.cmp-grid__text-container &gt; .cmp-grid__eyebrow-container &gt; .cmp-grid__eyebrow.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;p class=&quot;cmp-grid__eyebrow fade fade-in&quot;&gt;
+                        Explore All Vehicles
+                    &lt;/p&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.gdux--lightTheme.pad-top-56.pad-bottom-none &gt; .pad-bottom-24.cmp-grid__text-container &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading</td>
+            <td>1</td>
+            <td><pre>&lt;h1 class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        Find Your Ford
+                    &lt;/h1&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.pad-top-56.pad-bottom-none.inherit &gt; .pad-bottom-24.cmp-grid__text-container &gt; .cmp-grid__eyebrow-container &gt; .cmp-grid__eyebrow.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;cmp-grid__eyebrow fade fade-in&quot;&gt;
+                        Technology
+                    &lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.pad-top-56.pad-bottom-none.inherit &gt; .pad-bottom-24.cmp-grid__text-container &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;p class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        Create Your Perfect Drive
+                    &lt;/p&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.grid:nth-child(37) &gt; .cmp-grid &gt; .pad-top-56.pad-bottom-56.inherit &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__eyebrow-container &gt; .cmp-grid__eyebrow.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;cmp-grid__eyebrow fade fade-in&quot;&gt;
+                        Buying A Ford
+                    &lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.grid:nth-child(37) &gt; .cmp-grid &gt; .pad-top-56.pad-bottom-56.inherit &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;p class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        Get a Quote. Get Keys. Get Going.
+                    &lt;/p&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>#mediaAccordion-The\ Ford\ Owner\ Experience &gt; .fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;fade fade-in&quot;&gt;The Ford Owner Experience&lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.grid:nth-child(40) &gt; .cmp-grid &gt; .pad-top-56.pad-bottom-56.inherit &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__eyebrow-container &gt; .cmp-grid__eyebrow.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;p class=&quot;cmp-grid__eyebrow fade fade-in&quot;&gt;
+                        In the News, In Your Community 
+                    &lt;/p&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.grid:nth-child(40) &gt; .cmp-grid &gt; .pad-top-56.pad-bottom-56.inherit &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;p class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        Ford Inspires
+                    &lt;/p&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.background-black &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__eyebrow-container &gt; .cmp-grid__eyebrow.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;cmp-grid__eyebrow fade fade-in&quot;&gt;
+                        Vehicle Spotlight
+                    &lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.background-black &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;p class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        Picture Yourself in One
+                    &lt;/p&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>#onetrust-pc-btn-handler</td>
+            <td>1</td>
+            <td><pre>&lt;button id=&quot;onetrust-pc-btn-handler&quot;&gt;Cookie Settings&lt;/button&gt;</pre></td>
+          </tr>
+        
+            </tbody></table>
+          </div>
+        </div>
+      
+
+        <div class="page-accordion-block">
+          <button class="page-accordion">https://www.ford.ca (8) <a href="reports/result-accordion-https%3A%2F%2Fwww.ford.ca.html" style="margin-left:8px; font-size:0.9em">(open)</a></button>
+          <div class="panel page-panel">
+            <table class="small-table"><thead><tr><th>Selector</th><th>Occurrences</th><th>Example</th></tr></thead><tbody>
+              
+          <tr>
+            <td>#hp_family_carousel-item-f600adc6cb-tabpanel &gt; .teaser &gt; .cmp-teaser__container[data-target-component=&quot;teaser&quot;] &gt; .width-lg-12.width-md-8.activeDisclaimer &gt; .contentContainer &gt; .cmp-teaser__content--buttonWithAnimation.disableScroll.cmp-teaser__content &gt; .largeCard.cmp-teaser__content--wrapper &gt; div &gt; .cmp-teaser__title-container[events=&quot;true&quot;] &gt; .cmp-teaser__title &gt; h2</td>
+            <td>1</td>
+            <td><pre>&lt;h2&gt;Ready. Set. Power Through It.&lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>a[aria-label=&quot;Learn more about the F-150. &quot;] &gt; .cmp-button__text</td>
+            <td>1</td>
+            <td><pre>&lt;span class=&quot;cmp-button__text&quot;&gt;F-150 Family&lt;/span&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>#hp_family_carousel-item-c21eb2267f-tabpanel &gt; .teaser &gt; .cmp-teaser__container[data-target-component=&quot;teaser&quot;] &gt; .width-lg-12.width-md-8.activeDisclaimer &gt; .contentContainer &gt; .cmp-teaser__content--buttonWithAnimation.disableScroll.cmp-teaser__content &gt; .largeCard.cmp-teaser__content--wrapper &gt; div &gt; .cmp-teaser__title-container[events=&quot;true&quot;] &gt; .cmp-teaser__title &gt; h2</td>
+            <td>1</td>
+            <td><pre>&lt;h2&gt;Ready. Set. Roam Free.&lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>a[aria-label=&quot;Learn more about the Bronco. &quot;] &gt; .cmp-button__text</td>
+            <td>1</td>
+            <td><pre>&lt;span class=&quot;cmp-button__text&quot;&gt;Bronco Family&lt;/span&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>#hpcarouseltarget-id &gt; .cmp-carousel-slider__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;cmp-carousel-slider__heading fade fade-in&quot;&gt;
+                    Find Your Ford
+                &lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.inherit.pad-top-56.cmp-grid__container &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        The Ford Experience
+                    &lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.cmp-grid__eyebrow</td>
+            <td>1</td>
+            <td><pre>&lt;h2 class=&quot;cmp-grid__eyebrow fade fade-in&quot;&gt;
+                        Vehicle Spotlight
+                    &lt;/h2&gt;</pre></td>
+          </tr>
+        
+
+          <tr>
+            <td>.gdux--darkTheme &gt; .cmp-grid__text-container.pad-bottom-56 &gt; .cmp-grid__heading-container &gt; .cmp-grid__heading.fade.fade-in</td>
+            <td>1</td>
+            <td><pre>&lt;h3 class=&quot;cmp-grid__heading fade fade-in&quot;&gt;
+                        Picture Yourself in One
+                    &lt;/h3&gt;</pre></td>
+          </tr>
+        
+            </tbody></table>
+          </div>
+        </div>
+      
+        </div>
+      </div>
+    
+
+      <div class="rule-accordion-block">
+        <button class="rule-accordion">frame-title — Frames must have an accessible name <span class="impact serious">serious</span> <small>(1 occurrences across 1 pages)</small></button>
+        <div class="panel">
+          
+        <div class="page-accordion-block">
+          <button class="page-accordion">https://www.ford.com (1) <a href="reports/result-accordion-https%3A%2F%2Fwww.ford.com.html" style="margin-left:8px; font-size:0.9em">(open)</a></button>
+          <div class="panel page-panel">
+            <table class="small-table"><thead><tr><th>Selector</th><th>Occurrences</th><th>Example</th></tr></thead><tbody>
+              
+          <tr>
+            <td>#lightbox_pop</td>
+            <td>1</td>
+            <td><pre>&lt;iframe src=&quot;https://fordlincolns...&quot; id=&quot;lightbox_pop&quot; class=&quot;white_content&quot; scrolling=&quot;no&quot; frameborder=&quot;0&quot; style=&quot;height: 100%; width:...&quot; allowtransparency=&quot;true&quot;&gt;</pre></td>
+          </tr>
+        
+            </tbody></table>
+          </div>
+        </div>
+      
+        </div>
+      </div>
+    
+      </div>
+    </section>
+    <script>
+      // simple accordion behavior
+      document.querySelectorAll('.rule-accordion').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const p = btn.nextElementSibling;
+          p.style.display = p.style.display === 'block' ? 'none' : 'block';
+        });
+      });
+      document.querySelectorAll('.page-accordion').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const p = btn.nextElementSibling;
+          p.style.display = p.style.display === 'block' ? 'none' : 'block';
+        });
+      });
+      // filter rules by query
+      const filterEl = document.getElementById('filter');
+      filterEl.addEventListener('input', ()=>{
+        const q = filterEl.value.toLowerCase();
+        document.querySelectorAll('#rules-container .rule-accordion-block').forEach(block=>{
+          const text = block.innerText.toLowerCase();
+          block.style.display = text.includes(q) ? '' : 'none';
+        });
+      });
+    </script>
+  </body>
+  </html>

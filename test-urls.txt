@@ -1,0 +1,4 @@
+https://example.com
+https://www.ford.com
+https://www.fr.ford.ca
+https://www.ford.ca

@@ -86,7 +86,7 @@ function generateAggregate(reports = [], issues = []) {
   // Group reports by base URL so we can show normal vs 200% zoom side-by-side
   const grouped = {};
   (reports || []).forEach(r => {
-    const isZoom = typeof r.url === 'string' && /\(zoom200\)$/.test(r.url);
+      const isZoom = typeof r.url === 'string' && /\(zoom200\)$/.test(r.url);
     const base = isZoom ? r.url.replace(/\s*\(zoom200\)$/, '') : r.url;
     if(!grouped[base]) grouped[base] = { normal: null, zoom: null };
     if(isZoom) grouped[base].zoom = r;
@@ -130,7 +130,7 @@ function generateAggregate(reports = [], issues = []) {
       '<td>' + pagesHtml + '</td>' +
       '<td>' + (it.occurrences || 0) + '</td>' +
       '<td>' + (detectedAt200 ? '<strong style="color:#b45309">Yes @200%</strong>' : '-') + '</td>' +
-      '<td><pre>' + escapeHtml((it.example||'').slice(0,200)) + '</pre></td>' +
+        '</td>' +
       '</tr>'
     );
   }).join('\n');

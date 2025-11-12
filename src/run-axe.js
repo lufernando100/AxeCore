@@ -120,7 +120,7 @@ async function run(url, outFile, options = {}) {
     try{
       await page.addStyleTag({ content: 'html, body { zoom: 200% !important; }' });
       // give layout a moment to settle
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(800);
     }catch(e){
       console.warn('No se pudo aplicar CSS zoom:', e.message || e);
     }

@@ -83,26 +83,57 @@ function generateHtml(results = {}, url = '', opts = {}) {
 }
 
 function generateAggregate(reports = [], issues = []) {
-  const rows = (reports || []).map(r => (
-    '<tr>' +
-    '<td><a href="' + escapeHtml(r.htmlPath || '#') + '">' + escapeHtml(r.url || '') + '</a></td>' +
-    '<td>' + (r.violationsCount || 0) + '</td>' +
-    '<td>' + (r.passesCount || 0) + '</td>' +
-    '<td><a href="' + escapeHtml(r.jsonPath || '#') + '">JSON</a></td>' +
-    '</tr>'
-  )).join('\n');
+  // Group reports by base URL so we can show normal vs 200% zoom side-by-side
+  const grouped = {};
+  (reports || []).forEach(r => {
+    const isZoom = typeof r.url === 'string' && /\(zoom200\)$/.test(r.url);
+    const base = isZoom ? r.url.replace(/\s*\(zoom200\)$/, '') : r.url;
+    if(!grouped[base]) grouped[base] = { normal: null, zoom: null };
+    if(isZoom) grouped[base].zoom = r;
+    else grouped[base].normal = r;
+  });
 
-  const issueRows = (issues || []).map(it => (
-    '<tr data-impact="' + escapeHtml(it.impact || '') + '">' +
-    '<td>' + escapeHtml(it.id || '') + '</td>' +
-    '<td>' + escapeHtml(it.help || '') + '</td>' +
-    '<td>' + escapeHtml(it.impact || '') + '</td>' +
-    '<td>' + escapeHtml(it.selector || '') + '</td>' +
-    '<td>' + (it.pages || []).map(p=>'<a href="' + escapeHtml(reports.find(r=>r.url===p)?.htmlPath||'#') + '">' + escapeHtml(p) + '</a>').join(', ') + '</td>' +
-    '<td>' + (it.occurrences || 0) + '</td>' +
-    '<td><pre>' + escapeHtml((it.example||'').slice(0,200)) + '</pre></td>' +
-    '</tr>'
-  )).join('\n');
+  const rows = Object.keys(grouped).map(base => {
+    const entry = grouped[base];
+    const normal = entry.normal || {};
+    const zoom = entry.zoom || {};
+    return '<tr>' +
+      '<td>' + (normal.htmlPath ? ('<a href="' + escapeHtml(normal.htmlPath) + '">' + escapeHtml(base) + '</a>') : escapeHtml(base)) + '</td>' +
+      '<td>' + (normal.violationsCount || 0) + '</td>' +
+      '<td>' + (zoom.violationsCount || 0) + '</td>' +
+      '<td>' + (normal.passesCount || 0) + '</td>' +
+      '<td>' + (zoom.passesCount || 0) + '</td>' +
+      '<td>' + (normal.jsonPath ? ('<a href="' + escapeHtml(normal.jsonPath) + '">JSON</a>') : '-') + '</td>' +
+      '<td>' + (zoom.jsonPath ? ('<a href="' + escapeHtml(zoom.jsonPath) + '">JSON</a>') : '-') + '</td>' +
+      '</tr>';
+  }).join('\n');
+
+  // Render issues and mark which pages correspond to zoom runs
+  const issueRows = (issues || []).map(it => {
+    const pagesHtml = (it.pages || []).map(p => {
+      const isZoom = typeof p === 'string' && /\(zoom200\)$/.test(p);
+      const base = isZoom ? p.replace(/\s*\(zoom200\)$/, '') : p;
+      const report = reports.find(r => r.url === p || r.url === base || r.url === (base + ' (zoom200)'));
+      const href = report ? report.htmlPath : '#';
+      const display = escapeHtml(base) + (isZoom ? ' <span style="background:#eee;border-radius:4px;padding:2px 6px;margin-left:6px;font-size:0.8em">200%</span>' : '');
+      return '<a href="' + escapeHtml(href || '#') + '">' + display + '</a>';
+    }).join(', ');
+
+    const detectedAt200 = (it.pages || []).some(p => typeof p === 'string' && /\(zoom200\)$/.test(p));
+
+    return (
+      '<tr data-impact="' + escapeHtml(it.impact || '') + '">' +
+      '<td>' + escapeHtml(it.id || '') + '</td>' +
+      '<td>' + escapeHtml(it.help || '') + '</td>' +
+      '<td>' + escapeHtml(it.impact || '') + '</td>' +
+      '<td>' + escapeHtml(it.selector || '') + '</td>' +
+      '<td>' + pagesHtml + '</td>' +
+      '<td>' + (it.occurrences || 0) + '</td>' +
+      '<td>' + (detectedAt200 ? '<strong style="color:#b45309">Yes @200%</strong>' : '-') + '</td>' +
+      '<td><pre>' + escapeHtml((it.example||'').slice(0,200)) + '</pre></td>' +
+      '</tr>'
+    );
+  }).join('\n');
 
   return '<!doctype html>' +
     '<html>' +

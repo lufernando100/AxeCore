@@ -14,3 +14,6 @@ yarn-error.log*
 # Optional local editor files
 /.vscode/
 *.code-workspace
+
+# Local configuration - do not commit secrets or environment-specific settings
+axe.config.json

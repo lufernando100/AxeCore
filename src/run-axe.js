@@ -179,8 +179,51 @@ if (require.main === module) {
   .option('perUrlDir', { type: 'string', describe: 'Directory to write per-URL JSON/HTML reports (optional)' })
   .option('aggregateDir', { type: 'string', describe: 'Directory to write the aggregate HTML report (optional)' })
   .option('wcag', { type: 'string', describe: 'WCAG selection as a single parameter. Examples: "2.1:AA", "2.2-AAA", "2.1AA", "AA" (defaults to 2.1:AA if omitted). Overrides --standard when present.' })
+  .option('bestPracticeMode', { type: 'string', describe: 'Best-practice checks: off|learn|paid (off default)', choices: ['off','learn','paid'], default: 'off' })
+    .option('config', { type: 'string', describe: 'Path to JSON config file (overridden by CLI args)', default: undefined })
     .help()
     .argv;
+
+  // Merge configuration precedence: CLI argv (highest) > ENV vars > config file > defaults already present
+  (function applyConfig() {
+    const mergeMissing = (target, src) => {
+      if (!src) return;
+      for (const k of Object.keys(src)) {
+        if (target[k] === undefined || target[k] === null) target[k] = src[k];
+      }
+    };
+
+    // 1) Apply environment variables when CLI didn't provide a value
+    const envMap = {
+      wcag: process.env.WCAG,
+      bestPracticeMode: process.env.BEST_PRACTICE_MODE,
+      browser: process.env.AXE_BROWSER,
+      timeout: process.env.AXE_TIMEOUT ? Number(process.env.AXE_TIMEOUT) : undefined,
+      perUrlDir: process.env.PER_URL_DIR,
+      aggregateDir: process.env.AGGREGATE_DIR,
+      zoom200: process.env.ZOOM200 ? (process.env.ZOOM200 === 'true') : undefined,
+      zoomMethod: process.env.ZOOM_METHOD
+    };
+    mergeMissing(argv, envMap);
+
+    // 2) Load config file if provided or if default exists
+    const tryLoadConfig = (cfgPath) => {
+      try{
+        const full = path.resolve(cfgPath);
+        if (fs.existsSync(full)){
+          const raw = fs.readFileSync(full, 'utf-8');
+          const parsed = JSON.parse(raw);
+          mergeMissing(argv, parsed);
+        }
+      }catch(e){ console.warn('Failed to load config', cfgPath, e.message || e); }
+    };
+
+    if (argv.config) tryLoadConfig(argv.config);
+    else {
+      const defaultCfg = path.resolve(process.cwd(), 'axe.config.json');
+      if (fs.existsSync(defaultCfg)) tryLoadConfig(defaultCfg);
+    }
+  })();
 
   // Canonical WCAG selection variable: priority --wcag > env WCAG > --standard > default '2.1:AA'
   const WCAG_SELECTION_RAW = (argv.wcag || process.env.WCAG || argv.standard || '2.1:AA').toString().trim();
@@ -240,6 +283,18 @@ if (require.main === module) {
 
     runOnlyValue = tags.join(',');
   }
+
+  // If best-practice mode is requested, append the axe tag for best-practice checks
+  try{
+    const bpm = String(argv.bestPracticeMode || 'off').toLowerCase();
+    if (bpm && bpm !== 'off'){
+      if (['learn','paid'].includes(bpm)) {
+        runOnlyValue = runOnlyValue ? `${runOnlyValue},best-practice` : 'best-practice';
+      } else {
+        console.warn('Unknown bestPracticeMode:', argv.bestPracticeMode, 'ignoring');
+      }
+    }
+  }catch(e){ /* ignore */ }
 
   const commonOptions = { browser: argv.browser, runOnly: runOnlyValue, timeout: argv.timeout, cookies: argv.cookies };
   if (argv.allRules) commonOptions.allRules = true;

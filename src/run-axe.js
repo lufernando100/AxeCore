@@ -186,14 +186,28 @@ if (require.main === module) {
 
   // Merge configuration precedence: CLI argv (highest) > ENV vars > config file > defaults already present
   (function applyConfig() {
-    const mergeMissing = (target, src) => {
-      if (!src) return;
-      for (const k of Object.keys(src)) {
-        if (target[k] === undefined || target[k] === null) target[k] = src[k];
-      }
+    const cliProvided = (key) => {
+      return process.argv.some(a => a === `--${key}` || a.startsWith(`--${key}=`));
     };
 
-    // 1) Apply environment variables when CLI didn't provide a value
+    // Load configuration from file if present
+    let fileConfig = {};
+    const tryLoad = (cfgPath) => {
+      try{
+        const full = path.resolve(cfgPath);
+        if (fs.existsSync(full)){
+          fileConfig = JSON.parse(fs.readFileSync(full, 'utf-8')) || {};
+        }
+      }catch(e){ console.warn('Failed to load config', cfgPath, e.message || e); }
+    };
+
+    if (argv.config) tryLoad(argv.config);
+    else {
+      const defaultCfg = path.resolve(process.cwd(), 'axe.config.json');
+      if (fs.existsSync(defaultCfg)) tryLoad(defaultCfg);
+    }
+
+    // Environment variables (only apply if set)
     const envMap = {
       wcag: process.env.WCAG,
       bestPracticeMode: process.env.BEST_PRACTICE_MODE,
@@ -202,27 +216,27 @@ if (require.main === module) {
       perUrlDir: process.env.PER_URL_DIR,
       aggregateDir: process.env.AGGREGATE_DIR,
       zoom200: process.env.ZOOM200 ? (process.env.ZOOM200 === 'true') : undefined,
-      zoomMethod: process.env.ZOOM_METHOD
-    };
-    mergeMissing(argv, envMap);
-
-    // 2) Load config file if provided or if default exists
-    const tryLoadConfig = (cfgPath) => {
-      try{
-        const full = path.resolve(cfgPath);
-        if (fs.existsSync(full)){
-          const raw = fs.readFileSync(full, 'utf-8');
-          const parsed = JSON.parse(raw);
-          mergeMissing(argv, parsed);
-        }
-      }catch(e){ console.warn('Failed to load config', cfgPath, e.message || e); }
+      zoomMethod: process.env.ZOOM_METHOD,
+      allRules: process.env.AXE_ALL_RULES ? (process.env.AXE_ALL_RULES === 'true') : undefined
     };
 
-    if (argv.config) tryLoadConfig(argv.config);
-    else {
-      const defaultCfg = path.resolve(process.cwd(), 'axe.config.json');
-      if (fs.existsSync(defaultCfg)) tryLoadConfig(defaultCfg);
+    // Build merged config: start with fileConfig, then override with envMap (when present), then with CLI values (but only if provided explicitly on CLI)
+    const merged = Object.assign({}, fileConfig);
+    for (const k of Object.keys(envMap)) {
+      if (envMap[k] !== undefined && envMap[k] !== null) merged[k] = envMap[k];
     }
+
+    for (const k of Object.keys(argv)) {
+      if (k === '_' || k === '$0') continue;
+      if (cliProvided(k)) {
+        merged[k] = argv[k];
+      } else {
+        if (merged[k] === undefined || merged[k] === null) merged[k] = argv[k];
+      }
+    }
+
+    // Mutate argv so the rest of the script uses merged values
+    for (const k of Object.keys(merged)) argv[k] = merged[k];
   })();
 
   // Canonical WCAG selection variable: priority --wcag > env WCAG > --standard > default '2.1:AA'
@@ -286,15 +300,38 @@ if (require.main === module) {
 
   // If best-practice mode is requested, append the axe tag for best-practice checks
   try{
-    const bpm = String(argv.bestPracticeMode || 'off').toLowerCase();
-    if (bpm && bpm !== 'off'){
-      if (['learn','paid'].includes(bpm)) {
-        runOnlyValue = runOnlyValue ? `${runOnlyValue},best-practice` : 'best-practice';
-      } else {
-        console.warn('Unknown bestPracticeMode:', argv.bestPracticeMode, 'ignoring');
-      }
+    // Accept several alias forms from config/env/cli: 'learn'|'paid' are explicit;
+    // treat 'on'|'true'|'yes' as 'learn' for backwards-compatibility with earlier config values.
+    let bpmRaw = argv.bestPracticeMode;
+    if (bpmRaw === undefined || bpmRaw === null) bpmRaw = 'off';
+    const bpm = String(bpmRaw).trim().toLowerCase();
+    let bpmNormalized = 'off';
+    if (['learn','paid'].includes(bpm)) bpmNormalized = bpm;
+    else if (['on','true','yes','1'].includes(bpm)) bpmNormalized = 'learn';
+
+    if (bpmNormalized !== 'off'){
+      runOnlyValue = runOnlyValue ? `${runOnlyValue},best-practice` : 'best-practice';
+      // preserve argv.bestPracticeMode for logging/visibility but also set a normalized value
+      argv.bestPracticeMode = bpmNormalized;
     }
   }catch(e){ /* ignore */ }
+
+  // Log effective configuration for visibility when running without many CLI flags
+  try{
+    console.log('Effective configuration:');
+    console.log(JSON.stringify({
+      WCAG_SELECTION,
+      runOnly: runOnlyValue,
+      bestPracticeMode: argv.bestPracticeMode,
+      browser: argv.browser,
+      timeout: argv.timeout,
+      perUrlDir: argv.perUrlDir,
+      aggregateDir: argv.aggregateDir,
+      zoom200: argv.zoom200,
+      zoomMethod: argv.zoomMethod,
+      allRules: argv.allRules
+    }, null, 2));
+  }catch(e){ /* ignore logging errors */ }
 
   const commonOptions = { browser: argv.browser, runOnly: runOnlyValue, timeout: argv.timeout, cookies: argv.cookies };
   if (argv.allRules) commonOptions.allRules = true;

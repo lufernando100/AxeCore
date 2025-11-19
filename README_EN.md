@@ -1,4 +1,3 @@
-````markdown
 # Axe Automation
 
 Small utility to run Axe Core with Playwright and generate a human-friendly HTML report.
@@ -39,5 +38,3 @@ Suggested next steps
 - Add options to run against multiple URLs in a single run.
 - Integrate with CI to fail the build on critical-impact violations.
 - Add unit tests and example workflows.
-
-````

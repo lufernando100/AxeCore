@@ -1,0 +1,16 @@
+node_modules/
+.env
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore generated reports and per-run artifacts
+/reports/per-url/
+/reports/aggregate/
+/reports/*.json
+/reports/*.html
+
+# Optional local editor files
+/.vscode/
+*.code-workspace

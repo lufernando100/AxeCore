@@ -6,9 +6,9 @@ const axe = require('axe-core');
 const { generateHtml } = require('./generate-report');
 
 async function run(url, outFile, options = {}) {
-  if (!url) throw new Error('Se requiere --url');
+  if (!url) throw new Error('Missing --url');
   const browserName = options.browser || 'chromium';
-  if (!['chromium', 'firefox', 'webkit'].includes(browserName)) throw new Error('browser debe ser chromium, firefox o webkit');
+  if (!['chromium', 'firefox', 'webkit'].includes(browserName)) throw new Error('browser must be one of: chromium, firefox or webkit');
 
     const browserType = playwright[browserName];
     let browser = await browserType.launch({ headless: true });
@@ -29,7 +29,7 @@ async function run(url, outFile, options = {}) {
       const cookies = JSON.parse(fs.readFileSync(path.resolve(options.cookies), 'utf-8'));
       if (Array.isArray(cookies) && cookies.length) await context.addCookies(cookies);
     } catch (e) {
-      console.warn('No se pudieron cargar cookies desde', options.cookies, e.message);
+      console.warn('Could not load cookies from', options.cookies, e.message);
     }
   }
   const timeout = options.timeout || 30000;
@@ -43,12 +43,12 @@ async function run(url, outFile, options = {}) {
       await page.goto(url, { waitUntil: 'networkidle' });
       navigated = true;
     }catch(err){
-      console.warn('Error en networkidle, reintentando con domcontentloaded:', err.message);
+      console.warn('networkidle failed, retrying with domcontentloaded:', err.message);
       try{
         await page.goto(url, { waitUntil: 'domcontentloaded' });
         navigated = true;
       }catch(err2){
-        console.warn('domcontentloaded también falló:', err2.message);
+        console.warn('domcontentloaded also failed:', err2.message);
       }
     }
 
@@ -70,7 +70,7 @@ async function run(url, outFile, options = {}) {
           if (deviceScale) altContextOpts.deviceScaleFactor = deviceScale;
           const altContext = await altBrowser.newContext(altContextOpts);
           const altPage = await altContext.newPage();
-          console.log('Reintentando con navegador alternativo:', alt);
+          console.log('Retrying with alternative browser:', alt);
           try{
             await altPage.goto(url, { waitUntil: 'networkidle' });
             // success: use alt browser/context/page for the rest
@@ -78,20 +78,20 @@ async function run(url, outFile, options = {}) {
             context = altContext;
             page = altPage;
             navigated = true;
-            console.log('Navegado correctamente con', alt);
+            console.log('Navigated successfully with', alt);
             break;
           }catch(errAlt){
-            console.warn(`El navegador alternativo ${alt} falló:`, errAlt.message);
+            console.warn(`Alternative browser ${alt} failed:`, errAlt.message);
             try{ await altBrowser.close(); }catch(e){}
           }
         }catch(e){
-          console.warn('No se pudo lanzar navegador alternativo', alt, e.message || e);
+          console.warn('Could not launch alternative browser', alt, e.message || e);
         }
       }
     }
 
     if(!navigated){
-      console.warn('Todos los navegadores fallaron, usando fallback JSDOM');
+      console.warn('All browsers failed, using JSDOM fallback');
       try{ await browser.close(); }catch(e){}
       const resp = await fetch(url);
       const html = await resp.text();
@@ -107,11 +107,11 @@ async function run(url, outFile, options = {}) {
       const outPath = outFile || path.resolve(process.cwd(), 'axe-result-' + Date.now() + '.json');
       try{ fs.mkdirSync(path.dirname(outPath), { recursive: true }); }catch(e){}
       fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
-      console.log('Resultados JSON guardados en (JSDOM):', outPath);
+      console.log('JSON results saved (JSDOM):', outPath);
       const htmlStr = generateHtml(result, url);
       const htmlPath = outPath.replace(/\.json$/, '') + '.html';
       fs.writeFileSync(htmlPath, htmlStr, 'utf-8');
-      console.log('Reporte HTML generado en (JSDOM):', htmlPath);
+      console.log('HTML report generated (JSDOM):', htmlPath);
       usedJSDOM = true;
       return { outPath, htmlPath, result };
     }
@@ -122,19 +122,22 @@ async function run(url, outFile, options = {}) {
       // give layout a moment to settle
       await page.waitForTimeout(800);
     }catch(e){
-      console.warn('No se pudo aplicar CSS zoom:', e.message || e);
+      console.warn('Could not apply CSS zoom:', e.message || e);
     }
   }
 
   // Inject axe-core source
   await page.addScriptTag({ content: axe.source });
 
-  const runOnly = options.runOnly
-    ? { type: 'tag', values: options.runOnly.split(',').map((s) => s.trim()).filter(Boolean) }
-    : { type: 'tag', values: ['wcag2a', 'wcag2aa'] };
+  const runOnly = options.allRules
+    ? undefined
+    : (options.runOnly
+      ? { type: 'tag', values: options.runOnly.split(',').map((s) => s.trim()).filter(Boolean) }
+      : { type: 'tag', values: ['wcag2a', 'wcag2aa'] });
 
   const result = await page.evaluate(async (rOnly) => {
     // eslint-disable-next-line no-undef
+    if (!rOnly) return await axe.run(document);
     return await axe.run(document, { runOnly: rOnly });
   }, runOnly);
 
@@ -149,29 +152,32 @@ async function run(url, outFile, options = {}) {
   // ensure directory exists
   try{ fs.mkdirSync(path.dirname(outPath), { recursive: true }); }catch(e){}
   fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
-  console.log('Resultados JSON guardados en:', outPath);
+  console.log('JSON results saved:', outPath);
 
   const html = generateHtml(result, url, { generatedAt: now });
   const htmlPath = outPath.replace(/\.json$/, '') + '.html';
   fs.writeFileSync(htmlPath, html, 'utf-8');
-  console.log('Reporte HTML generado en:', htmlPath);
+  console.log('HTML report generated:', htmlPath);
 
   return { outPath, htmlPath, result };
 }
 
 if (require.main === module) {
   const argv = require('yargs/yargs')(process.argv.slice(2))
-    .usage('Uso: $0 --url <url> | --input <file> [--output <file.json>] [--browser <chromium|firefox|webkit>] [--runOnly <tag,tag> | --standard <wcag2.1-aa>] [--timeout <ms>] [--cookies <path> ]')
-    .option('url', { type: 'string', describe: 'URL a auditar (si no se usa --input)' })
-    .option('input', { type: 'string', describe: 'Archivo con lista de URLs (CSV con columna url o txt con una URL por línea)' })
-    .option('output', { type: 'string', describe: 'Archivo JSON de salida (opcional, para cada URL se creará uno si no se especifica)' })
+    .usage('Usage: $0 --url <url> | --input <file> [--output <file.json>] [--browser <chromium|firefox|webkit>] [--runOnly <tag,tag> | --standard <wcag2.1-aa>] [--timeout <ms>] [--cookies <path> ]')
+    .option('url', { type: 'string', describe: 'URL to audit (if --input is not used)' })
+    .option('input', { type: 'string', describe: 'File with list of URLs (CSV with url column or txt with one URL per line)' })
+    .option('output', { type: 'string', describe: 'Output JSON file (optional; per-URL files will be created if not specified)' })
     .option('browser', { type: 'string', describe: 'Browser: chromium|firefox|webkit', default: 'chromium' })
-    .option('runOnly', { type: 'string', describe: 'Coma-separado tags a ejecutar (ej: wcag2a,wcag2aa)' })
-    .option('standard', { type: 'string', describe: 'Norma a usar (ej: "wcag21aa" o "2.1 AA"). Si no especificado, por defecto WCAG 2.1 AA', default: 'wcag21aa' })
-    .option('timeout', { type: 'number', describe: 'Timeout en ms para navegación y acciones', default: 30000 })
-  .option('cookies', { type: 'string', describe: 'Ruta a JSON de cookies (formato Playwright) para autenticación' })
-  .option('zoom200', { type: 'boolean', describe: 'Ejecutar una pasada adicional con zoom 200% (por defecto false)', default: false })
-  .option('zoomMethod', { type: 'string', describe: 'Método para zoom: dpr | css | both', choices: ['dpr','css','both'], default: 'dpr' })
+    .option('runOnly', { type: 'string', describe: 'Comma-separated tags to run (e.g.: wcag2a,wcag2aa)' })
+    .option('standard', { type: 'string', describe: 'Standard to use (e.g.: "wcag21aa" or "2.1 AA"). Default: WCAG 2.1 AA', default: 'wcag21aa' })
+    .option('timeout', { type: 'number', describe: 'Timeout in ms for navigation and actions', default: 30000 })
+  .option('cookies', { type: 'string', describe: 'Path to JSON with cookies (Playwright format) for authentication' })
+  .option('zoom200', { type: 'boolean', describe: 'Run an additional pass at 200% zoom (default false)', default: false })
+  .option('zoomMethod', { type: 'string', describe: 'Zoom method: dpr | css | both', choices: ['dpr','css','both'], default: 'dpr' })
+  .option('allRules', { type: 'boolean', describe: 'Run all axe rules instead of only WCAG tags (useful for full audits)', default: false })
+  .option('perUrlDir', { type: 'string', describe: 'Directory to write per-URL JSON/HTML reports (optional)' })
+  .option('aggregateDir', { type: 'string', describe: 'Directory to write the aggregate HTML report (optional)' })
     .help()
     .argv;
 
@@ -211,9 +217,10 @@ if (require.main === module) {
   }
 
   const commonOptions = { browser: argv.browser, runOnly: runOnlyValue, timeout: argv.timeout, cookies: argv.cookies };
+  if (argv.allRules) commonOptions.allRules = true;
 
   const runForOne = async (targetUrl, outFile, overrideOpts) => {
-    console.log('\n----\nProcesando URL:', targetUrl);
+    console.log('\n----\nProcessing URL:', targetUrl);
     try{
       // ensure output directory exists if specified
       if(outFile){
@@ -223,7 +230,7 @@ if (require.main === module) {
       const res = await run(targetUrl, outFile, opts);
       return res;
     }catch(e){
-      console.error('Error procesando', targetUrl, e.message || e);
+      console.error('Error processing', targetUrl, e.message || e);
       return null;
     }
   };
@@ -232,15 +239,19 @@ if (require.main === module) {
     if(argv.input){
       const urls = parseUrlsFromFile(argv.input);
       if(!urls.length){
-        console.error('No se encontraron URLs en', argv.input);
+        console.error('No URLs found in', argv.input);
         process.exit(1);
       }
   const aggregate = [];
   const issuesMap = new Map(); // key -> { id, help, impact, selector, pages:Set, count, example }
   for(const u of urls){
-        // determine per-url output path if base output specified
+        // determine per-url output path
         let out = argv.output;
-        if(out && urls.length > 1){
+        if (argv.perUrlDir) {
+          try{ fs.mkdirSync(path.resolve(argv.perUrlDir), { recursive: true }); }catch(e){}
+          const fileName = `result-${encodeURIComponent(u).slice(0,60)}.json`;
+          out = path.resolve(argv.perUrlDir, fileName);
+        } else if(out && urls.length > 1){
           const base = out.replace(/\.json$/,'');
           out = `${base}-${encodeURIComponent(u).slice(0,60)}.json`;
         }
@@ -270,8 +281,14 @@ if (require.main === module) {
           try{
             const outZoom = out ? out.replace(/\.json$/,'') + '-zoom200.json' : undefined;
             const zoomOpts = { zoom: true, zoomMethod: argv.zoomMethod };
-            console.log('Ejecutando pasada con zoom 200% (metodo:', argv.zoomMethod + ') para', u);
-            const resZoom = await runForOne(u, outZoom, zoomOpts);
+            // if perUrlDir specified, place zoom file into that dir
+            let outZoomResolved = outZoom;
+            if (argv.perUrlDir) {
+              const fileNameZ = `result-${encodeURIComponent(u).slice(0,60)}-zoom200.json`;
+              outZoomResolved = path.resolve(argv.perUrlDir, fileNameZ);
+            }
+            console.log('Running 200% zoom pass (method:', argv.zoomMethod + ') for', u);
+            const resZoom = await runForOne(u, outZoomResolved, zoomOpts);
             if(resZoom){
               aggregate.push({ url: u + ' (zoom200)', jsonPath: resZoom.outPath, htmlPath: resZoom.htmlPath, violationsCount: (resZoom.result.violations||[]).length, passesCount: (resZoom.result.passes||[]).length });
               // collect issues from zoom run as well
@@ -292,7 +309,7 @@ if (require.main === module) {
                 }
               }
             }
-          }catch(e){ console.warn('Error en corrida zoom para', u, e.message || e); }
+          }catch(e){ console.warn('Error in zoom run for', u, e.message || e); }
         }
       }
       // write aggregate if multiple
@@ -300,14 +317,34 @@ if (require.main === module) {
         const { generateAggregate } = require('./generate-report');
         const issues = Array.from(issuesMap.values()).map(e=>({ id: e.id, help: e.help, impact: e.impact, selector: e.selector, pages: Array.from(e.pages), occurrences: e.count, example: e.example }));
         const aggHtml = generateAggregate(aggregate, issues);
-        const aggPath = argv.output ? argv.output.replace(/\.json$/,'') + '-aggregate.html' : `axe-aggregate-${Date.now()}.html`;
+        let aggPath;
+        if (argv.aggregateDir) {
+          try{ fs.mkdirSync(path.resolve(argv.aggregateDir), { recursive: true }); }catch(e){}
+          aggPath = path.resolve(argv.aggregateDir, 'aggregate.html');
+        } else {
+          aggPath = argv.output ? argv.output.replace(/\.json$/,'') + '-aggregate.html' : `axe-aggregate-${Date.now()}.html`;
+        }
         fs.writeFileSync(aggPath, aggHtml, 'utf-8');
-        console.log('Reporte agregado generado en:', aggPath);
+        console.log('Aggregate report generated at:', aggPath);
       }
     } else if(argv.url){
-      await runForOne(argv.url, argv.output);
+      // Run normal pass
+      const resSingle = await runForOne(argv.url, argv.output);
+      // If zoom200 requested, perform an additional zoom run for the single URL path as well
+        if(argv.zoom200){
+        try{
+          const outZoom = argv.output ? argv.output.replace(/\.json$/,'') + '-zoom200.json' : undefined;
+          const zoomOpts = { zoom: true, zoomMethod: argv.zoomMethod };
+          console.log('Running 200% zoom pass (method:', argv.zoomMethod + ') for', argv.url);
+          const resZoom = await runForOne(argv.url, outZoom, zoomOpts);
+          if(resZoom){
+            console.log('JSON results saved (zoom):', resZoom.outPath);
+            console.log('HTML report generated (zoom):', resZoom.htmlPath);
+          }
+        }catch(e){ console.warn('Error en corrida zoom para', argv.url, e.message || e); }
+      }
     } else {
-      console.error('Debe especificar --url o --input <file>');
+      console.error('You must specify --url or --input <file>');
       process.exit(1);
     }
   })().catch(err=>{ console.error(err); process.exit(1); });

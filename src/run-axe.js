@@ -182,6 +182,21 @@ if (require.main === module) {
     .help()
     .argv;
 
+  // Canonical WCAG selection variable: priority --wcag > env WCAG > --standard > default '2.1:AA'
+  const WCAG_SELECTION_RAW = (argv.wcag || process.env.WCAG || argv.standard || '2.1:AA').toString().trim();
+  // Normalize to form like '2.1:AA' or '2.2:AAA' or 'AA'
+  function normalizeWcag(raw) {
+    const r = String(raw).trim();
+    const m = r.match(/(2\.\d)\s*[:\-\s]?\s*([Aa]{1,3})/i);
+    if (m) return `${m[1]}:${m[2].toUpperCase()}`;
+    if (/^[Aa]{1,3}$/i.test(r)) return r.toUpperCase();
+    const m2 = r.match(/2\.\d/);
+    if (m2) return `${m2[0]}:AA`;
+    // default
+    return '2.1:AA';
+  }
+  const WCAG_SELECTION = normalizeWcag(WCAG_SELECTION_RAW);
+
   // Helper: parse urls from file (CSV with header 'url' or newline-separated list)
   const parseUrlsFromFile = (filePath) => {
     const { parse } = require('csv-parse/sync');
@@ -202,55 +217,26 @@ if (require.main === module) {
     return lines;
   };
 
-  // Determine runOnly tags from --runOnly or single --wcag parameter or --standard
+  // Determine runOnly tags from --runOnly or canonical WCAG_SELECTION
   let runOnlyValue = argv.runOnly;
   if (!runOnlyValue) {
-    // Parse single --wcag parameter when provided (preferred). Accepts formats like "2.1:AA", "2.2-AAA", "2.1AA", or just "AA".
-    let ver;
-    let level;
-    if (argv.wcag) {
-      const raw = String(argv.wcag).trim();
-      // Try to capture version and level
-      const m = raw.match(/(2\.\d)\s*[:\-\s]?\s*([Aa]{1,3})/i);
-      if (m) {
-        ver = m[1];
-        level = m[2].toUpperCase();
-      } else if (/^[Aa]{1,3}$/i.test(raw)) {
-        level = raw.toUpperCase();
-        ver = undefined; // will default later
-      } else if (/^2\.\d$/.test(raw)) {
-        ver = raw;
-        level = undefined;
-      }
-    }
+    // WCAG_SELECTION is normalized as '2.1:AA' or 'AA'
+    const parts = WCAG_SELECTION.split(':');
+    const verPart = parts.length > 1 ? parts[0] : undefined;
+    const levelPart = parts.length > 1 ? parts[1] : (parts[0] && /^[Aa]{1,3}$/.test(parts[0]) ? parts[0] : 'AA');
 
-    // Fallback: try to infer from --standard if version/level missing
-    if (!ver) {
-      const m2 = String(argv.standard || '').match(/2\.\d/);
-      ver = m2 ? m2[0] : '2.1';
-    }
-    if (!level) {
-      const s = String(argv.standard || '').toLowerCase();
-      if (s.includes('aaa')) level = 'AAA';
-      else if (s.includes('aa')) level = 'AA';
-      else if (s.includes('a')) level = 'A';
-      else level = 'AA';
-    }
+    const ver = verPart || (String(argv.standard || '').match(/2\.\d/) || ['2.1'])[0];
+    const level = (levelPart || 'AA').toUpperCase();
 
     // Determine prefix for tag names
     let prefix = 'wcag2';
     if (String(ver).startsWith('2.2') || String(ver).includes('22')) prefix = 'wcag22';
 
     const tags = [];
-    if (level === 'A') {
-      tags.push(`${prefix}a`);
-    } else if (level === 'AA') {
-      tags.push(`${prefix}a`, `${prefix}aa`);
-    } else if (level === 'AAA') {
-      tags.push(`${prefix}a`, `${prefix}aa`, `${prefix}aaa`);
-    } else {
-      tags.push(`${prefix}a`, `${prefix}aa`);
-    }
+    if (level === 'A') tags.push(`${prefix}a`);
+    else if (level === 'AA') tags.push(`${prefix}a`, `${prefix}aa`);
+    else if (level === 'AAA') tags.push(`${prefix}a`, `${prefix}aa`, `${prefix}aaa`);
+    else tags.push(`${prefix}a`, `${prefix}aa`);
 
     runOnlyValue = tags.join(',');
   }

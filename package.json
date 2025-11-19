@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "axe": "node ./src/run-axe.js",
+    "axe": "node ./src/run-axe.js --config axe.config.json",
     "axe:all": "node ./src/run-axe.js --input ./test-urls.txt --output ./reports/all-results.json --browser firefox --timeout 60000 --perUrlDir ./reports/per-url --aggregateDir ./reports/aggregate",
     "axe:default": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt",
     "axe:learn": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt --bestPracticeMode learn",

@@ -85,6 +85,16 @@ const wcagNorm = normalizeWcag(final.wcag || final.standard || '2.1:AA');
 let runOnly = deriveRunOnlyFromWcag(wcagNorm);
 if (bpmNorm !== 'off') runOnly = runOnly ? `${runOnly},best-practice` : 'best-practice';
 
+// Responsive normalization: prefer final.responsive, then CLI/env flags, then legacy zoom200/zoomMethod
+const cfgResp = final.responsive && typeof final.responsive === 'object' ? final.responsive : {};
+const zoomTestFlag = (final.zoomTestEnabled !== undefined) ? final.zoomTestEnabled : undefined;
+const respEnabled = (zoomTestFlag !== undefined) ? zoomTestFlag : ((final.responsiveEnabled !== undefined) ? final.responsiveEnabled : (final.zoom200 || cfgResp.enabled || false));
+const zoomTestPercentFlag = (final.zoomTestPercent !== undefined) ? final.zoomTestPercent : undefined;
+const respZoomPercent = (zoomTestPercentFlag !== undefined) ? zoomTestPercentFlag : ((final.zoomPercent !== undefined) ? final.zoomPercent : (cfgResp.zoomPercent !== undefined ? cfgResp.zoomPercent : (final.zoom200 ? 200 : 100)));
+const zoomTestMethodFlag = (final.zoomTestMethod !== undefined) ? final.zoomTestMethod : undefined;
+const respMethod = (zoomTestMethodFlag || final.responsiveMethod || cfgResp.method || final.zoomMethod || 'css').toLowerCase();
+const RESPONSIVE_NORMALIZED = { enabled: Boolean(respEnabled), zoomPercent: Number(respZoomPercent) || 100, method: respMethod };
+
 console.log(JSON.stringify(final, null, 2));
 console.log('\nNormalized view:');
-console.log(JSON.stringify({ wcag: wcagNorm, bestPracticeMode: bpmNorm, runOnly }, null, 2));
+console.log(JSON.stringify({ wcag: wcagNorm, bestPracticeMode: bpmNorm, runOnly, responsive: RESPONSIVE_NORMALIZED }, null, 2));

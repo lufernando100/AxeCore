@@ -13,8 +13,8 @@ async function run(url, outFile, options = {}) {
     const browserType = playwright[browserName];
     let browser = await browserType.launch({ headless: true });
     // Use a common desktop user agent and allow insecure certs to reduce navigation errors on some sites
-    // If zoom is requested and method includes 'dpr', set deviceScaleFactor to 2
-    const deviceScale = (options.zoom && (options.zoomMethod === 'dpr' || options.zoomMethod === 'both')) ? 2 : undefined;
+    // If zoom is requested and method includes 'dpr' or both, set deviceScaleFactor according to zoomPercent (fallback 2)
+    const deviceScale = (options.zoom && (options.zoomMethod === 'dpr' || options.zoomMethod === 'both')) ? ((options.zoomPercent && Number(options.zoomPercent) > 0) ? (Number(options.zoomPercent) / 100) : 2) : undefined;
     const newContextOpts = {
       userAgent: options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
       ignoreHTTPSErrors: true,
@@ -118,9 +118,36 @@ async function run(url, outFile, options = {}) {
   // If using CSS zoom method, inject CSS before running axe to ensure layout changes are applied
   if (options.zoom && (options.zoomMethod === 'css' || options.zoomMethod === 'both')){
     try{
-      await page.addStyleTag({ content: 'html, body { zoom: 200% !important; }' });
-      // give layout a moment to settle
-      await page.waitForTimeout(800);
+      const pct = options.zoomPercent && Number(options.zoomPercent) ? Number(options.zoomPercent) : 200;
+      // Apply CSS zoom which scales the rendering. Some sites only reflow when the
+      // viewport changes (media queries). To better emulate a user zoom that
+      // triggers responsive breakpoints, also adjust the logical viewport width
+      // proportionally so media queries are re-evaluated.
+      await page.addStyleTag({ content: `html, body { zoom: ${pct}% !important; }` });
+
+      // Try to read current viewport; fall back to common desktop defaults.
+      let currentViewport = (page.viewportSize && page.viewportSize()) || null;
+      if (!currentViewport) {
+        try{
+          // Some Playwright versions expose viewportSize as an async method; try eval fallback
+          currentViewport = await page.evaluate(() => ({ width: window.innerWidth || 1280, height: window.innerHeight || 720 }));
+        }catch(e){
+          currentViewport = { width: 1280, height: 720 };
+        }
+      }
+
+      try{
+        const scale = pct > 0 ? (pct / 100) : 1;
+        const newWidth = Math.max(320, Math.round((currentViewport.width || 1280) / scale));
+        const newHeight = currentViewport.height || 720;
+        // Set a smaller logical viewport to emulate how zoom would affect breakpoints
+        await page.setViewportSize({ width: newWidth, height: newHeight });
+      }catch(e){
+        // setViewportSize may fail in some contexts; ignore and continue
+      }
+
+      // give layout a moment to settle after zoom + viewport change
+      await page.waitForTimeout(1200);
     }catch(e){
       console.warn('Could not apply CSS zoom:', e.message || e);
     }
@@ -175,6 +202,12 @@ if (require.main === module) {
   .option('cookies', { type: 'string', describe: 'Path to JSON with cookies (Playwright format) for authentication' })
   .option('zoom200', { type: 'boolean', describe: 'Run an additional pass at 200% zoom (default false)', default: false })
   .option('zoomMethod', { type: 'string', describe: 'Zoom method: dpr | css | both', choices: ['dpr','css','both'], default: 'dpr' })
+  .option('responsiveEnabled', { type: 'boolean', describe: 'Enable responsive zoom pass (overrides config.responsive.enabled)', default: undefined })
+  .option('zoomPercent', { type: 'number', describe: 'Zoom percent to use for responsive pass (overrides config.responsive.zoomPercent)', default: undefined })
+  .option('responsiveMethod', { type: 'string', describe: 'Method for responsive zoom: css|dpr|both', choices: ['css','dpr','both'], default: undefined })
+  .option('zoomTestEnabled', { type: 'boolean', describe: 'Enable additional zoom test pass (overrides responsive/responsiveEnabled)', default: undefined })
+  .option('zoomTestPercent', { type: 'number', describe: 'Zoom percent to use for the zoom test pass (overrides zoomPercent)', default: undefined })
+  .option('zoomTestMethod', { type: 'string', describe: 'Method for the zoom test: css|dpr|both (overrides responsiveMethod)', choices: ['css','dpr','both'], default: undefined })
   .option('allRules', { type: 'boolean', describe: 'Run all axe rules instead of only WCAG tags (useful for full audits)', default: false })
   .option('perUrlDir', { type: 'string', describe: 'Directory to write per-URL JSON/HTML reports (optional)' })
   .option('aggregateDir', { type: 'string', describe: 'Directory to write the aggregate HTML report (optional)' })
@@ -333,6 +366,26 @@ if (require.main === module) {
     }, null, 2));
   }catch(e){ /* ignore logging errors */ }
 
+  // Responsive configuration canonicalization: prefer config.responsive (object), then CLI flags, then legacy zoom flags
+  const cfgResponsive = argv.responsive && typeof argv.responsive === 'object' ? argv.responsive : {};
+  // New: support explicit zoomTest CLI flags which control the additional zoom pass
+  const zoomTestFlag = (argv.zoomTestEnabled !== undefined) ? argv.zoomTestEnabled : undefined;
+  const responsiveEnabled = (zoomTestFlag !== undefined) ? zoomTestFlag : ((argv.responsiveEnabled !== undefined) ? argv.responsiveEnabled : (argv.zoom200 || cfgResponsive.enabled || false));
+
+  const zoomTestPercentFlag = (argv.zoomTestPercent !== undefined) ? argv.zoomTestPercent : undefined;
+  const responsiveZoomPercent = (zoomTestPercentFlag !== undefined) ? zoomTestPercentFlag : ((argv.zoomPercent !== undefined) ? argv.zoomPercent : (cfgResponsive.zoomPercent !== undefined ? cfgResponsive.zoomPercent : (argv.zoom200 ? 200 : 100)));
+
+  const zoomTestMethodFlag = (argv.zoomTestMethod !== undefined) ? argv.zoomTestMethod : undefined;
+  const responsiveMethod = (zoomTestMethodFlag || argv.responsiveMethod || cfgResponsive.method || argv.zoomMethod || 'css').toLowerCase();
+
+  const RESPONSIVE = {
+    enabled: Boolean(responsiveEnabled),
+    zoomPercent: Number(responsiveZoomPercent) || 100,
+    method: String(responsiveMethod || 'css').toLowerCase()
+  };
+
+  try{ console.log('Effective responsive config:', JSON.stringify(RESPONSIVE, null, 2)); }catch(e){}
+
   const commonOptions = { browser: argv.browser, runOnly: runOnlyValue, timeout: argv.timeout, cookies: argv.cookies };
   if (argv.allRules) commonOptions.allRules = true;
 
@@ -393,21 +446,21 @@ if (require.main === module) {
             }
           }
         }
-        // If zoom run requested, perform additional run with zoom settings and write separate files
-        if(argv.zoom200){
+        // If responsive run requested, perform additional run with responsive zoom settings and write separate files
+        if(RESPONSIVE.enabled){
           try{
-            const outZoom = out ? out.replace(/\.json$/,'') + '-zoom200.json' : undefined;
-            const zoomOpts = { zoom: true, zoomMethod: argv.zoomMethod };
+            const outZoom = out ? out.replace(/\.json$/,'') + `-resp${RESPONSIVE.zoomPercent}.json` : undefined;
+            const zoomOpts = { zoom: true, zoomMethod: RESPONSIVE.method, zoomPercent: RESPONSIVE.zoomPercent };
             // if perUrlDir specified, place zoom file into that dir
             let outZoomResolved = outZoom;
             if (argv.perUrlDir) {
-              const fileNameZ = `result-${encodeURIComponent(u).slice(0,60)}-zoom200.json`;
+              const fileNameZ = `result-${encodeURIComponent(u).slice(0,60)}-resp${RESPONSIVE.zoomPercent}.json`;
               outZoomResolved = path.resolve(argv.perUrlDir, fileNameZ);
             }
-            console.log('Running 200% zoom pass (method:', argv.zoomMethod + ') for', u);
+            console.log('Running responsive zoom pass (method:', RESPONSIVE.method + ', percent:', RESPONSIVE.zoomPercent + ') for', u);
             const resZoom = await runForOne(u, outZoomResolved, zoomOpts);
             if(resZoom){
-              aggregate.push({ url: u + ' (zoom200)', jsonPath: resZoom.outPath, htmlPath: resZoom.htmlPath, violationsCount: (resZoom.result.violations||[]).length, passesCount: (resZoom.result.passes||[]).length });
+              aggregate.push({ url: u + ` (resp${RESPONSIVE.zoomPercent})`, jsonPath: resZoom.outPath, htmlPath: resZoom.htmlPath, violationsCount: (resZoom.result.violations||[]).length, passesCount: (resZoom.result.passes||[]).length });
               // collect issues from zoom run as well
               const violsZ = resZoom.result.violations || [];
               for(const v of violsZ){
@@ -417,10 +470,10 @@ if (require.main === module) {
                   const key = `${ruleId}:::${selector}`;
                   const exHtml = (node.html || '').slice(0,200);
                   if(!issuesMap.has(key)){
-                    issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u + ' (zoom200)']), count: 1, example: exHtml });
+                    issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u + ` (resp${RESPONSIVE.zoomPercent})`]), count: 1, example: exHtml });
                   } else {
                     const entry = issuesMap.get(key);
-                    entry.pages.add(u + ' (zoom200)');
+                    entry.pages.add(u + ` (resp${RESPONSIVE.zoomPercent})`);
                     entry.count = entry.count + 1;
                   }
                 }
@@ -448,17 +501,17 @@ if (require.main === module) {
       // Run normal pass
       const resSingle = await runForOne(argv.url, argv.output);
       // If zoom200 requested, perform an additional zoom run for the single URL path as well
-        if(argv.zoom200){
+        if(RESPONSIVE.enabled){
         try{
-          const outZoom = argv.output ? argv.output.replace(/\.json$/,'') + '-zoom200.json' : undefined;
-          const zoomOpts = { zoom: true, zoomMethod: argv.zoomMethod };
-          console.log('Running 200% zoom pass (method:', argv.zoomMethod + ') for', argv.url);
+          const outZoom = argv.output ? argv.output.replace(/\.json$/,'') + `-resp${RESPONSIVE.zoomPercent}.json` : undefined;
+          const zoomOpts = { zoom: true, zoomMethod: RESPONSIVE.method, zoomPercent: RESPONSIVE.zoomPercent };
+          console.log('Running responsive zoom pass (method:', RESPONSIVE.method + ', percent:', RESPONSIVE.zoomPercent + ') for', argv.url);
           const resZoom = await runForOne(argv.url, outZoom, zoomOpts);
           if(resZoom){
-            console.log('JSON results saved (zoom):', resZoom.outPath);
-            console.log('HTML report generated (zoom):', resZoom.htmlPath);
+            console.log('JSON results saved (responsive):', resZoom.outPath);
+            console.log('HTML report generated (responsive):', resZoom.htmlPath);
           }
-        }catch(e){ console.warn('Error en corrida zoom para', argv.url, e.message || e); }
+        }catch(e){ console.warn('Error en corrida responsive para', argv.url, e.message || e); }
       }
     } else {
       console.error('You must specify --url or --input <file>');

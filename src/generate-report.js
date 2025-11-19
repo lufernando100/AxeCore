@@ -108,31 +108,39 @@ function generateAggregate(reports = [], issues = []) {
       '</tr>';
   }).join('\n');
 
-  // Render issues and mark which pages correspond to zoom runs
-  const issueRows = (issues || []).map(it => {
-    const pagesHtml = (it.pages || []).map(p => {
-      const isZoom = typeof p === 'string' && /\(zoom200\)$/.test(p);
-      const base = isZoom ? p.replace(/\s*\(zoom200\)$/, '') : p;
-      const report = reports.find(r => r.url === p || r.url === base || r.url === (base + ' (zoom200)'));
-      const href = report ? report.htmlPath : '#';
-      const display = escapeHtml(base) + (isZoom ? ' <span style="background:#eee;border-radius:4px;padding:2px 6px;margin-left:6px;font-size:0.8em">200%</span>' : '');
-      return '<a href="' + escapeHtml(href || '#') + '">' + display + '</a>';
-    }).join(', ');
+  // Group issues by rule id and render as accordion (details/summary)
+  const issuesByRule = {};
+  (issues || []).forEach(it => {
+    const id = it.id || 'unknown';
+    if(!issuesByRule[id]) issuesByRule[id] = { id, help: it.help || '', items: [], total: 0 };
+    issuesByRule[id].items.push({ impact: it.impact, selector: it.selector, pages: it.pages || [], occurrences: it.occurrences || 0, example: it.example });
+    issuesByRule[id].total += it.occurrences || 0;
+  });
 
-    const detectedAt200 = (it.pages || []).some(p => typeof p === 'string' && /\(zoom200\)$/.test(p));
+  const issuesHtml = Object.keys(issuesByRule).map(ruleId => {
+    const rule = issuesByRule[ruleId];
+    const summary = '<summary><strong>' + escapeHtml(ruleId) + '</strong> - ' + escapeHtml(rule.help || '') + ' <span class="count">(' + (rule.total || 0) + ' occurrences)</span></summary>';
+    const rowsInner = (rule.items || []).map(item => {
+      const pagesHtml = (item.pages || []).map(p => {
+        const isZoom = typeof p === 'string' && /\(zoom200\)$/.test(p);
+        const base = isZoom ? p.replace(/\s*\(zoom200\)$/, '') : p;
+        const report = reports.find(r => r.url === p || r.url === base || r.url === (base + ' (zoom200)'));
+        const jsonHref = report && report.jsonPath ? report.jsonPath : '#';
+        const display = escapeHtml(base) + (isZoom ? ' <span class="badge">200%</span>' : '');
+        return '<a href="' + escapeHtml(jsonHref) + '">' + display + '</a>';
+      }).join(', ');
 
-    return (
-      '<tr data-impact="' + escapeHtml(it.impact || '') + '">' +
-      '<td>' + escapeHtml(it.id || '') + '</td>' +
-      '<td>' + escapeHtml(it.help || '') + '</td>' +
-      '<td>' + escapeHtml(it.impact || '') + '</td>' +
-      '<td>' + escapeHtml(it.selector || '') + '</td>' +
-      '<td>' + pagesHtml + '</td>' +
-      '<td>' + (it.occurrences || 0) + '</td>' +
-      '<td>' + (detectedAt200 ? '<strong style="color:#b45309">Yes @200%</strong>' : '-') + '</td>' +
-        '</td>' +
-      '</tr>'
-    );
+      return '<tr>' +
+        '<td>' + escapeHtml(item.impact || '') + '</td>' +
+        '<td>' + escapeHtml(item.selector || '') + '</td>' +
+        '<td>' + pagesHtml + '</td>' +
+        '<td>' + (item.occurrences || 0) + '</td>' +
+        '</tr>';
+    }).join('\n') || '<tr><td colspan="4">No items</td></tr>';
+
+    return '<details class="rule-accordion">' + summary + '<div class="rule-body">' +
+      '<table class="rule-table"><thead><tr><th>Impact</th><th>Selector</th><th>Pages (JSON)</th><th>Occurrences</th></tr></thead><tbody>' + rowsInner + '</tbody></table>' +
+      '</div></details>';
   }).join('\n');
 
   return '<!doctype html>' +
@@ -149,6 +157,12 @@ function generateAggregate(reports = [], issues = []) {
     'input[type=search]{padding:6px;margin-bottom:12px;width:100%}' +
     '.small{font-size:0.9em;color:#555}' +
     'pre{white-space:pre-wrap}' +
+    '.rule-accordion{margin:8px 0;border:1px solid #e6eef8;border-radius:8px;padding:8px;background:#fbfdff}' +
+    '.rule-accordion summary{cursor:pointer;font-size:1.05em;padding:6px;display:block}' +
+    '.rule-accordion .count{color:#555;margin-left:8px;font-weight:600}' +
+    '.rule-accordion .badge{background:#eee;border-radius:4px;padding:2px 6px;margin-left:6px;font-size:0.8em}' +
+    '.rule-table{width:100%;border-collapse:collapse;margin-top:8px}' +
+    '.rule-table th,.rule-table td{border:1px solid #ddd;padding:8px;text-align:left}' +
     '</style>' +
     '</head>' +
     '<body>' +
@@ -162,14 +176,11 @@ function generateAggregate(reports = [], issues = []) {
     '</section>' +
     '<section>' +
     '<h2>Issues across pages</h2>' +
-    '<p class="small">Issues are deduplicated by rule + selector. If the same component fails across multiple pages it appears once, and the "Pages" column lists affected pages.</p>' +
+    '<p class="small">Issues are deduplicated by rule + selector. Expand a rule to see per-selector items, affected pages and JSON links.</p>' +
     '<input id="filter" type="search" placeholder="Filter by id, help, selector or URL..." />' +
-    '<table id="issues-table">' +
-    '<thead><tr><th>Rule</th><th>Help</th><th>Impact</th><th>Selector</th><th>Pages</th><th>Occurrences</th><th>Example</th></tr></thead>' +
-    '<tbody>' + issueRows + '</tbody>' +
-    '</table>' +
+    '<div id="issues-accordion">' + issuesHtml + '</div>' +
     '</section>' +
-    '<script>const filterEl=document.getElementById("filter");filterEl.addEventListener("input",()=>{const q=filterEl.value.toLowerCase();document.querySelectorAll("#issues-table tbody tr").forEach(tr=>{tr.style.display=tr.innerText.toLowerCase().includes(q)?"":"none";});});</script>' +
+    '<script>const filterEl=document.getElementById("filter");filterEl.addEventListener("input",()=>{const q=filterEl.value.toLowerCase();document.querySelectorAll("#issues-accordion details").forEach(d=>{d.style.display=d.innerText.toLowerCase().includes(q)?"":"none";});});</script>' +
     '</body>' +
     '</html>';
 }

@@ -1,0 +1,17 @@
+[
+  {
+    "url": "https://example.com/",
+    "timestamp": "2025-11-19T12:00:00Z",
+    "results": [
+      { "id": "color-contrast", "impact": "serious", "description": "Elements must have sufficient contrast.", "nodes": [{"html":"<p>text</p>","target":["#main p"]}] },
+      { "id": "image-alt", "impact": "moderate", "description": "Images must have alt text.", "nodes": [{"html":"<img />","target":["img.logo"]}] }
+    ]
+  },
+  {
+    "url": "https://example.com/about",
+    "timestamp": "2025-11-19T12:05:00Z",
+    "results": [
+      { "id": "label", "impact": "critical", "description": "Form controls must have labels.", "nodes": [{"html":"<input />","target":["#email"]}] }
+    ]
+  }
+]

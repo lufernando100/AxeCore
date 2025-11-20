@@ -1,4 +1,10 @@
-// Minimal, clean flat English report generator (per-URL + aggregate flat table)
+const crypto = require('crypto');
+
+// Helper to create a unique signature for an issue (same as in jira-sync.js)
+function getIssueSignature(ruleId, selector) {
+  const str = `${ruleId}|${selector}`;
+  return crypto.createHash('md5').update(str).digest('hex');
+}
 
 const escapeHtml = (s) => {
   if (s === null || s === undefined) return '';
@@ -153,7 +159,8 @@ function generateAggregate(reports = [], issues = []) {
                '</a>';
       }).join('');
 
-      return '<tr>' +
+      const signature = getIssueSignature(ruleId, item.selector);
+      return '<tr data-signature="' + signature + '">' +
         '<td><span class="badge ' + escapeHtml(item.impact || '') + '">' + escapeHtml(item.impact || '') + '</span></td>' +
         '<td>' + escapeHtml(item.selector || '') + '</td>' +
         '<td>' + pagesHtml + '</td>' +
@@ -206,6 +213,15 @@ a:hover{text-decoration:underline}
 .badge.serious{background:#ffedd5;color:#9a3412;border:1px solid #fed7aa}
 .badge.moderate{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
 .badge.minor{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+
+/* Jira Badges */
+.jira-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:16px; font-size:0.75rem; font-weight:600; text-decoration:none; transition:all 0.2s; border:1px solid transparent; cursor:pointer; }
+.jira-badge.linked { background:#f0f5ff; color:#0052cc; border-color:#b3d4ff; }
+.jira-badge.create { background:#fff; color:#4b5563; border:1px dashed #9ca3af; }
+.jira-badge.warning { background:#fffcf5; color:#b45309; border-color:#fed7aa; }
+.jira-badge:hover { transform:translateY(-1px); box-shadow:0 2px 4px rgba(0,0,0,0.05); }
+.jira-badge svg { width:12px; height:12px; fill:currentColor; }
+
 .text-critical{color:var(--critical);font-weight:700}
 .text-serious{color:var(--serious);font-weight:700}
 .text-moderate{color:var(--moderate);font-weight:700}
@@ -278,6 +294,19 @@ a:hover{text-decoration:underline}
         <h2>Issues (Grouped by Rule)</h2>
         <input id="filter" type="search" placeholder="Filter rules..." style="padding:8px;border:1px solid #d1d5db;border-radius:6px;width:240px">
       </div>
+      
+      <!-- Header Row -->
+      <div class="accordion-header" style="display:flex; padding:10px 20px; font-weight:700; color:#4b5563; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.5px; border-bottom:2px solid #e5e7eb; margin-bottom:0; background:#f9fafb; border-top-left-radius:8px; border-top-right-radius:8px;">
+          <div style="display:flex; align-items:center; gap:12px; flex:1">
+            <div style="min-width:180px">Rule Name</div>
+            <div>Severity</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px">
+            <div style="min-width:40px; text-align:center">Count</div>
+            <div style="min-width:120px">Jira Status</div>
+          </div>
+      </div>
+
       <div id="issues-accordion">
         ${issuesHtml}
       </div>
@@ -302,6 +331,60 @@ a:hover{text-decoration:underline}
 <script>
   // Set date
   document.getElementById('report-date').innerText = 'Generated: ' + new Date().toLocaleString();
+
+  // Jira Integration Helpers
+  window.JIRA_HOST = ''; 
+  window.updateJiraBadges = function(jiraData) {
+      if(!jiraData) return;
+      
+      // Icons
+      const iconLink = '<svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>';
+      const iconPlus = '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>';
+      const iconWarn = '<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>';
+
+      // 1. Update Rule Summaries (Aggregate)
+      document.querySelectorAll('.rule-accordion').forEach(acc => {
+          const rows = acc.querySelectorAll('tr[data-signature]');
+          const tickets = new Set();
+          let missingCount = 0;
+          
+          rows.forEach(row => {
+              const sig = row.getAttribute('data-signature');
+              const info = jiraData[sig];
+              if(info && info.key) {
+                  tickets.add(info.key);
+              } else {
+                  missingCount++;
+              }
+          });
+          
+          const container = acc.querySelector('.jira-rule-summary');
+          if(!container) return;
+          
+          const uniqueTickets = Array.from(tickets);
+          let html = '';
+          
+          if (uniqueTickets.length === 0) {
+              // No tickets -> Create
+              html = \`<span class="jira-badge create" title="Ticket creation is currently disabled">\${iconPlus} Create Ticket</span>\`;
+          } else if (uniqueTickets.length === 1 && missingCount === 0) {
+              // Single ticket, fully covered
+              const key = uniqueTickets[0];
+              const url = window.JIRA_HOST ? \`https://\${window.JIRA_HOST}/browse/\${key}\` : '#';
+              html = \`<a href="\${url}" target="_blank" class="jira-badge linked">\${iconLink} \${key}</a>\`;
+          } else {
+              // Mixed or Multiple
+              const label = uniqueTickets.length > 0 ? uniqueTickets[0] : '';
+              const extra = uniqueTickets.length > 1 ? \` (+\${uniqueTickets.length-1})\` : '';
+              const missing = missingCount > 0 ? \` (+\${missingCount} New)\` : '';
+              const url = window.JIRA_HOST && uniqueTickets.length > 0 ? \`https://\${window.JIRA_HOST}/browse/\${uniqueTickets[0]}\` : '#';
+              
+              html = \`<a href="\${url}" target="_blank" class="jira-badge warning">\${iconWarn} \${label}\${extra}\${missing}</a>\`;
+          }
+          
+          container.innerHTML = html;
+      });
+  };
 
   // Filter
   const filterEl = document.getElementById('filter');
@@ -402,11 +485,13 @@ a:hover{text-decoration:underline}
 
         // Rebuild Summary HTML
         summary.innerHTML = \`
-          <div class="rule-name">\${ruleId}</div>
-          <div class="rule-meta">
+          <div style="display:flex;align-items:center;gap:12px;flex:1">
+            <div class="rule-name" style="min-width:180px">\${ruleId}</div>
             <span class="badge \${ruleImpact}">\${ruleImpact}</span>
-            <span class="meta-pill" title="Occurrences">\${ruleOccurrences}</span>
-            <span class="meta-pill" title="Affected URLs">\${uniqueUrls.size} urls</span>
+          </div>
+          <div class="rule-meta" style="display:flex;align-items:center;gap:12px">
+            <span class="meta-pill" title="Occurrences" style="min-width:40px; text-align:center">\${ruleOccurrences}</span>
+            <div class="jira-rule-summary" style="min-width:120px"></div>
           </div>
         \`;
         

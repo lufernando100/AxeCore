@@ -5,11 +5,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "axe": "node ./src/run-axe.js --config axe.config.json",
-    "axe:all": "node ./src/run-axe.js --input ./test-urls.txt --output ./reports/all-results.json --browser firefox --timeout 60000 --perUrlDir ./reports/per-url --aggregateDir ./reports/aggregate",
+    "axe:all": "node ./src/run-axe.js --input ./test-urls.txt --output ./reports/all-results.json --browser firefox --timeout 60000 --perUrlDir ./reports/per-url --aggregateDir ./reports/aggregate && npm run jira:sync",
     "axe:default": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt",
     "preview-config": "node ./scripts/preview-config.js --config axe.config.json",
     "axe:learn": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt --bestPracticeMode learn",
-    "axe:no-best": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt --bestPracticeMode off"
+    "axe:no-best": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt --bestPracticeMode off",
+    "jira:sync": "node ./src/jira-sync.js"
   },
   "keywords": [],
   "author": "",
@@ -17,12 +18,13 @@
   "description": "",
   "dependencies": {
     "@axe-core/playwright": "^4.11.0",
+    "axe-core": "^4.11.0",
+    "axios": "^1.13.2",
+    "csv-parse": "^5.4.0",
     "dotenv": "^17.2.3",
     "jira-client": "^8.2.2",
-    "playwright": "^1.56.1",
-    "axe-core": "^4.11.0",
-    "yargs": "^17.7.2",
     "jsdom": "^22.1.0",
-    "csv-parse": "^5.4.0"
+    "playwright": "^1.56.1",
+    "yargs": "^17.7.2"
   }
 }

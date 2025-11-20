@@ -16,4 +16,4 @@ yarn-error.log*
 *.code-workspace
 
 # Local configuration - do not commit secrets or environment-specific settings
-axe.config.json
+axe.config.json.env

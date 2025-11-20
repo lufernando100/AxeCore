@@ -1,0 +1,15 @@
+{
+  "wcag": "2.1:AA",
+  "responsive": {
+    "enabled": true,
+    "zoomPercent": 200,
+    "method": "css"
+  }
+  ,
+  "bestPracticeMode": "off",
+  "browser": "firefox",
+  "timeout": 60000,
+  "perUrlDir": "reports/per-url",
+  "aggregateDir": "reports/aggregate",
+  "allRules": false
+}

@@ -83,153 +83,101 @@ function generateHtml(results = {}, url = '', opts = {}) {
 }
 
 function generateAggregate(reports = [], issues = []) {
-  // Build a quick lookup from report URL -> report object (helps link JSON/html)
+  // Produce a professional English aggregate report
   const reportByUrl = {};
   (reports || []).forEach(r => { if (r && r.url) reportByUrl[String(r.url)] = r; });
 
-  // Helper to normalize base url (strip responsive suffixes like " (resp300)" or " (zoom200)")
-  const baseFor = (u) => String(u || '').replace(/\s*\(resp\d+\)$/, '').replace(/\s*\(zoom\d+\)$/, '').trim();
-
-  // Totals
-  const uniquePages = new Set((reports || []).map(r => baseFor(r.url)));
+  const normalize = (u) => String(u || '').replace(/\s*\(resp\d+\)$/, '').replace(/\s*\(zoom\d+\)$/, '').trim();
+  const uniquePages = new Set((reports || []).map(r => normalize(r.url)));
   const totalPages = uniquePages.size;
   const totalRules = (issues || []).length;
   const totalViolations = (issues || []).reduce((s, it) => s + (it.occurrences || 0), 0);
 
-  // Build summary rows for the per-URL table
-  const rows = (reports || []).map(r => {
-    const displayUrl = escapeHtml(r.url || '');
-    const violations = r.violationsCount || 0;
-    const passes = r.passesCount || 0;
-    const jsonLink = r.jsonPath ? ('<a href="' + escapeHtml(r.jsonPath) + '">JSON</a>') : '-';
-    const htmlLink = r.htmlPath ? ('<a href="' + escapeHtml(r.htmlPath) + '">HTML</a>') : '-';
-    return '<tr>' +
-      '<td>' + displayUrl + '</td>' +
-      '<td>' + violations + '</td>' +
-      '<td>' + passes + '</td>' +
-      '<td>' + jsonLink + '</td>' +
-      '<td>' + htmlLink + '</td>' +
-      '</tr>';
-  }).join('\n');
-
-  // Build issues HTML using the improved card/accordion layout
-  const issuesHtml = (issues || []).map(it => {
+  const issueCards = (issues || []).map(it => {
     const id = it.id || 'unknown';
     const help = it.help || '';
-    const impact = (it.impact || '').toLowerCase();
-    const occurrences = it.occurrences || 0;
-    const severityClass = impact === 'critical' || impact === 'serious' ? 'high' : (impact === 'moderate' ? 'medium' : 'low');
-
-    const pagesHtml = (it.pages || []).map(p => {
-      const isResp = /\(resp\d+\)$/.test(p) || /\(zoom\d+\)$/.test(p);
-      const base = baseFor(p);
-      const report = reportByUrl[p] || reportByUrl[base] || {};
-      const href = report.jsonPath ? report.jsonPath : (report.htmlPath ? report.htmlPath : '#');
-      const pill = '<a class="page-pill" href="' + escapeHtml(href) + '">' + escapeHtml(base) + (isResp ? ' <span class="badge">' + escapeHtml((String(p).match(/\((resp|zoom)(\d+)\)/i)||[])[2] || '' ) + '%</span>' : '') + '</a>';
-      return pill;
+    const impact = (it.impact || 'unknown').toLowerCase();
+    const occ = it.occurrences || 0;
+    const pages = (it.pages || []).map(p => {
+      const base = normalize(p);
+      const r = reportByUrl[p] || reportByUrl[base] || {};
+      const href = r.htmlPath || r.jsonPath || '#';
+      return `<a class="page-pill" href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(base)}</a>`;
     }).join(' ');
-
-    const exampleHtml = it.example ? '<pre>' + escapeHtml(it.example) + '</pre>' : '';
-
-    return '<div class="issue" data-severity="' + escapeHtml(severityClass) + '" data-id="' + escapeHtml(id) + '">' +
-      '<div style="width:90px"><div class="severity ' + escapeHtml(severityClass) + '">' + escapeHtml(impact || 'unknown') + '</div></div>' +
-      '<div class="issue-main">' +
-        '<div class="issue-title"><div><div style="font-weight:700">' + escapeHtml(id) + ' — ' + escapeHtml(help) + '</div>' +
-        '<div class="meta">Regla: ' + escapeHtml(id) + ' | Ocurrencias: <strong>' + occurrences + '</strong></div></div>' +
-        '<div class="small">Impact: ' + escapeHtml(impact || '') + '</div></div>' +
-        '<div class="summary">' + escapeHtml(help) + '</div>' +
-        '<details><summary>Ver páginas afectadas y ejemplos</summary><div class="pages">' + pagesHtml + '</div>' + exampleHtml + '</details>' +
-      '</div></div>';
+    const example = it.example ? `<pre>${escapeHtml(it.example)}</pre>` : '';
+    return `
+      <article class="issue" data-id="${escapeHtml(id)}" data-impact="${escapeHtml(impact)}">
+        <div class="left"><div class="impact impact-${escapeHtml(impact)}">${escapeHtml(impact)}</div></div>
+        <div class="body">
+          <h3 class="title">${escapeHtml(id)} <span class="muted">— ${escapeHtml(help)}</span></h3>
+          <div class="meta">Occurrences: <strong>${occ}</strong></div>
+          <div class="details"><details><summary>View affected pages & example</summary><div class="pages">${pages}</div>${example}</details></div>
+        </div>
+      </article>`;
   }).join('\n');
 
-  // Template using template literal for readability
   return `<!doctype html>
-    <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <title>Aggregate Accessibility Report</title>
-      <meta name="viewport" content="width=device-width,initial-scale=1" />
-      <style>
-      :root{--bg:#f6f8fb;--card:#ffffff;--muted:#6b7280;--accent:#0b63d6;--danger:#ef4444;--warn:#f59e0b;--ok:#10b981;--mono: "Segoe UI", Roboto, Arial, sans-serif}
-      body{font-family:var(--mono);margin:0;background:var(--bg);color:#111}
-      .container{max-width:1100px;margin:28px auto;padding:20px}
-      header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-      h1{font-size:20px;margin:0}
-      .controls{display:flex;gap:10px;align-items:center}
-      .card-row{display:flex;gap:12px;margin:12px 0 20px;flex-wrap:wrap}
-      .card{background:var(--card);padding:12px 16px;border-radius:8px;box-shadow:0 1px 3px rgba(15,23,42,0.06);min-width:140px}
-      .card .num{font-weight:700;font-size:18px}
-      .filters input[type="search"]{padding:8px 10px;border-radius:8px;border:1px solid #e5e7eb}
-      .filters select{padding:8px;border-radius:8px;border:1px solid #e5e7eb}
-      .issues{margin-top:18px}
-      .issue{background:var(--card);border-radius:8px;padding:12px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start}
-      .severity{padding:6px 8px;border-radius:6px;color:#fff;font-weight:700;font-size:12px}
-      .severity.high{background:var(--danger)} .severity.medium{background:var(--warn)} .severity.low{background:var(--ok)}
-      .issue-main{flex:1}
-      .issue-title{display:flex;gap:10px;align-items:center;justify-content:space-between}
-      .summary{color:var(--muted);font-size:13px;margin-top:6px}
-      details{margin-top:10px}
-      summary{cursor:pointer;padding:8px;border-radius:6px;background:#f8fafc;border:1px solid #eef2f7}
+  <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Accessibility Aggregate Report</title>
+    <style>
+      :root{--bg:#f7f9fc;--card:#ffffff;--muted:#6b7280;--accent:#0b63d6;--danger:#b91c1c;--warn:#b45309;--ok:#059669;--font:Inter,Segoe UI,Roboto,system-ui,Arial}
+      body{margin:0;font-family:var(--font);background:var(--bg);color:#0b1226}
+      .wrap{max-width:1200px;margin:32px auto;padding:24px}
+      header{display:flex;justify-content:space-between;align-items:center}
+      .brand{display:flex;align-items:center;gap:12px}
+      .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#0366d6)}
+      h1{margin:0;font-size:20px}
+      .meta{color:var(--muted);font-size:13px}
+      .controls input{padding:10px;border-radius:8px;border:1px solid #e6eef8;width:320px}
+      .cards{display:flex;gap:12px;margin-top:18px}
+      .card{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 8px 24px rgba(11,17,34,0.04);min-width:160px}
+      .card .label{font-size:12px;color:var(--muted)} .card .value{font-size:20px;font-weight:700}
+      main{margin-top:20px}
+      .issue{display:flex;gap:12px;background:var(--card);padding:14px;border-radius:10px;margin-bottom:12px}
+      .left{width:90px;display:flex;align-items:center;justify-content:center}
+      .impact{padding:6px 10px;border-radius:999px;color:#fff;font-weight:700;text-transform:capitalize}
+      .impact-critical,.impact-serious{background:var(--danger)} .impact-moderate{background:var(--warn);color:#111} .impact-minor{background:var(--ok)}
+      .body .title{margin:0;font-size:15px}
+      .muted{color:var(--muted);font-weight:500}
       .pages{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-      .page-pill{background:#eef2ff;padding:6px 8px;border-radius:6px;font-size:12px;color:#044da1;text-decoration:none;display:inline-block}
-      .meta{font-size:12px;color:var(--muted);margin-left:6px}
-      .small{font-size:12px;color:var(--muted)}
-      .actions{display:flex;gap:8px}
-      .btn{background:var(--accent);color:#fff;padding:8px 10px;border-radius:8px;text-decoration:none}
-      @media (max-width:720px){.card-row{flex-direction:column}}
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <header>
-          <h1>Aggregate Accessibility Report</h1>
-          <div class="controls">
-            <div class="filters">
-              <input id="q" type="search" placeholder="Buscar regla, selector, página..." />
-              <select id="sev"><option value="">Todas severidades</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-            </div>
-            <div class="actions"><a class="btn" id="exportJson" href="#">Exportar JSON</a></div>
-          </div>
-        </header>
+      .page-pill{background:#f1f7ff;padding:6px 8px;border-radius:8px;color:#034a9a;text-decoration:none}
+      pre{background:#0b1226;color:#f8fafc;padding:10px;border-radius:8px;overflow:auto}
+      footer{margin-top:20px;color:var(--muted);font-size:13px}
+      @media (max-width:800px){.cards{flex-direction:column}.controls input{width:160px}}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="brand"><span class="logo" aria-hidden="true"></span><div><h1>Accessibility Aggregate Report</h1><div class="meta">Generated: ${escapeHtml(new Date().toLocaleString())}</div></div></div>
+        <div class="controls"><input id="q" type="search" placeholder="Search rule id, selector or page" aria-label="Search" /></div>
+      </header>
 
-        <div class="card-row">
-          <div class="card"><div class="small">Páginas</div><div class="num" id="totalPages">${totalPages}</div></div>
-          <div class="card"><div class="small">Reglas únicas</div><div class="num" id="totalRules">${totalRules}</div></div>
-          <div class="card"><div class="small">Violaciones totales</div><div class="num" id="totalViolations">${totalViolations}</div></div>
-        </div>
-
-        <section class="issues" id="issuesList">
-          ${issuesHtml}
-        </section>
+      <div class="cards">
+        <div class="card"><div class="label">Pages</div><div class="value">${totalPages}</div></div>
+        <div class="card"><div class="label">Unique Rules</div><div class="value">${totalRules}</div></div>
+        <div class="card"><div class="label">Total Violations</div><div class="value">${totalViolations}</div></div>
       </div>
 
-      <script>
-        const q=document.getElementById('q');
-        const sev=document.getElementById('sev');
-        const issues=Array.from(document.querySelectorAll('.issue'));
-        function renderFilter(){
-          const term=q.value.trim().toLowerCase();
-          const s=sev.value;
-          issues.forEach(el=>{
-            const id=el.dataset.id||'';
-            const text=(el.innerText||'').toLowerCase();
-            const matchesTerm=!term||id.includes(term)||text.includes(term);
-            const matchesSev=!s||el.dataset.severity===s;
-            el.style.display=(matchesTerm&&matchesSev)?'':'none';
-          });
-        }
-        q.addEventListener('input',renderFilter);
-        sev.addEventListener('change',renderFilter);
-        document.getElementById('exportJson').addEventListener('click',function(e){
-          e.preventDefault();
-          const payload=issues.map(el=>({id:el.dataset.id,severity:el.dataset.severity,title:el.querySelector('.issue-title div div')?el.querySelector('.issue-title div div').innerText:'',pages:Array.from(el.querySelectorAll('.page-pill')).map(p=>p.innerText)}));
-          const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-          const url=URL.createObjectURL(blob);
-          const a=document.createElement('a');a.href=url;a.download='aggregate-export.json';a.click();URL.revokeObjectURL(url);
-        });
-      </script>
-    </body>
-    </html>`;
+      <main>
+        <section id="issues">${issueCards}</section>
+      </main>
+
+      <footer>Export: <a id="exportJson" href="#">JSON</a> · Per-URL reports are available in <code>reports/per-url/</code></footer>
+    </div>
+
+    <script>
+      const q=document.getElementById('q');
+      const issues=Array.from(document.querySelectorAll('.issue'));
+      function filter(){const v=q.value.trim().toLowerCase();issues.forEach(el=>{const txt=(el.innerText||'').toLowerCase();el.style.display = (!v || txt.includes(v)) ? '' : 'none';});}
+      q.addEventListener('input',filter);
+      document.getElementById('exportJson').addEventListener('click',e=>{e.preventDefault();const payload=issues.map(i=>({id:i.dataset.id,impact:i.dataset.impact,title:i.querySelector('.title')?i.querySelector('.title').innerText.trim():'',pages:Array.from(i.querySelectorAll('.page-pill')).map(p=>p.innerText)}));const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='aggregate-export.json';a.click();URL.revokeObjectURL(url);});
+    </script>
+  </body>
+  </html>`;
 }
 
 module.exports = { generateHtml, generateAggregate };

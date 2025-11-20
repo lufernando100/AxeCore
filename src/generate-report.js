@@ -83,28 +83,31 @@ function generateHtml(results = {}, url = '', opts = {}) {
 }
 
 function generateAggregate(reports = [], issues = []) {
-  // Group reports by base URL so we can show normal vs 200% zoom side-by-side
-  const grouped = {};
-  (reports || []).forEach(r => {
-      const isZoom = typeof r.url === 'string' && /\(zoom200\)$/.test(r.url);
-    const base = isZoom ? r.url.replace(/\s*\(zoom200\)$/, '') : r.url;
-    if(!grouped[base]) grouped[base] = { normal: null, zoom: null };
-    if(isZoom) grouped[base].zoom = r;
-    else grouped[base].normal = r;
-  });
+  // Flatten reports so each run (normal or zoom) is its own row
+  const rows = (reports || []).map(r => {
+    const isZoom = typeof r.url === 'string' && /\(zoom200\)$/.test(r.url);
+    const isResp = typeof r.url === 'string' && r.url.includes('resp');
+    
+    // Clean URL for display
+    let urlDisplay = escapeHtml(r.url);
+    let badge = '';
 
-  const rows = Object.keys(grouped).map(base => {
-    const entry = grouped[base];
-    const normal = entry.normal || {};
-    const zoom = entry.zoom || {};
+    if (isZoom) {
+        urlDisplay = escapeHtml(r.url.replace(/\s*\(zoom200\)$/, ''));
+        badge = ' <span class="badge minor" style="font-size:0.7em; background:#e0f2fe; color:#0369a1;">200% ZOOM</span>';
+    } else if (isResp) {
+        // Maybe extract the resp tag if needed, or just label it
+        badge = ' <span class="badge minor" style="font-size:0.7em; background:#e0f2fe; color:#0369a1;">RESPONSIVE</span>';
+    }
+
     return '<tr>' +
-      '<td>' + (normal.htmlPath ? ('<a href="' + escapeHtml(normal.htmlPath) + '">' + escapeHtml(base) + '</a>') : escapeHtml(base)) + '</td>' +
-      '<td>' + (normal.violationsCount || 0) + '</td>' +
-      '<td>' + (zoom.violationsCount || 0) + '</td>' +
-      '<td>' + (normal.passesCount || 0) + '</td>' +
-      '<td>' + (zoom.passesCount || 0) + '</td>' +
-      '<td>' + (normal.jsonPath ? ('<a href="' + escapeHtml(normal.jsonPath) + '">JSON</a>') : '-') + '</td>' +
-      '<td>' + (zoom.jsonPath ? ('<a href="' + escapeHtml(zoom.jsonPath) + '">JSON</a>') : '-') + '</td>' +
+      '<td><div style="display:flex; align-items:center; gap:8px;">' + 
+        (r.htmlPath ? ('<a href="' + escapeHtml(r.htmlPath) + '">' + urlDisplay + '</a>') : urlDisplay) + 
+        badge + 
+      '</div></td>' +
+      '<td>' + (r.violationsCount || 0) + '</td>' +
+      '<td>' + (r.passesCount || 0) + '</td>' +
+      '<td>' + (r.jsonPath ? ('<a href="' + escapeHtml(r.jsonPath) + '">JSON</a>') : '-') + '</td>' +
       '</tr>';
   }).join('\n');
 
@@ -123,15 +126,35 @@ function generateAggregate(reports = [], issues = []) {
     const rowsInner = (rule.items || []).map(item => {
       const pagesHtml = (item.pages || []).map(p => {
         const isZoom = typeof p === 'string' && /\(zoom200\)$/.test(p);
-        const base = isZoom ? p.replace(/\s*\(zoom200\)$/, '') : p;
-        const report = reports.find(r => r.url === p || r.url === base || r.url === (base + ' (zoom200)'));
+        const isResp = typeof p === 'string' && p.includes('resp');
+        
+        let display = escapeHtml(p);
+        let badge = '';
+
+        if (isZoom) {
+            display = escapeHtml(p.replace(/\s*\(zoom200\)$/, ''));
+            badge = ' <span class="badge minor" style="font-size:0.7em; background:#e0f2fe; color:#0369a1;">200% ZOOM</span>';
+        } else if (isResp) {
+            badge = ' <span class="badge minor" style="font-size:0.7em; background:#e0f2fe; color:#0369a1;">RESPONSIVE</span>';
+        }
+
+        // Find report for JSON link
+        let report = reports.find(r => r.url === p);
+        if (!report && isZoom) {
+             const base = p.replace(/\s*\(zoom200\)$/, '');
+             report = reports.find(r => r.url === base || r.url === (base + ' (zoom200)'));
+        }
+
         const jsonHref = report && report.jsonPath ? report.jsonPath : '#';
-        const display = escapeHtml(base) + (isZoom ? ' <span class="badge">200%</span>' : '');
-        return '<a href="' + escapeHtml(jsonHref) + '">' + display + '</a>';
-      }).join(', ');
+        
+        return '<a href="' + escapeHtml(jsonHref) + '" style="display:block;margin-bottom:4px;text-decoration:none;color:inherit">' + 
+               '<span style="text-decoration:underline;color:#2c6ecb">' + display + '</span>' + 
+               badge + 
+               '</a>';
+      }).join('');
 
       return '<tr>' +
-        '<td>' + escapeHtml(item.impact || '') + '</td>' +
+        '<td><span class="badge ' + escapeHtml(item.impact || '') + '">' + escapeHtml(item.impact || '') + '</span></td>' +
         '<td>' + escapeHtml(item.selector || '') + '</td>' +
         '<td>' + pagesHtml + '</td>' +
         '<td>' + (item.occurrences || 0) + '</td>' +
@@ -143,46 +166,323 @@ function generateAggregate(reports = [], issues = []) {
       '</div></details>';
   }).join('\n');
 
-  return '<!doctype html>' +
-    '<html>' +
-    '<head>' +
-    '<meta charset="utf-8" />' +
-    '<title>Axe Aggregate Report</title>' +
-    '<meta name="viewport" content="width=device-width,initial-scale=1" />' +
-    '<style>' +
-    'body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:20px}' +
-    'table{width:100%;border-collapse:collapse}' +
-    'th,td{border:1px solid #ddd;padding:8px;text-align:left}' +
-    'th{background:#f4f6f8}' +
-    'input[type=search]{padding:6px;margin-bottom:12px;width:100%}' +
-    '.small{font-size:0.9em;color:#555}' +
-    'pre{white-space:pre-wrap}' +
-    '.rule-accordion{margin:8px 0;border:1px solid #e6eef8;border-radius:8px;padding:8px;background:#fbfdff}' +
-    '.rule-accordion summary{cursor:pointer;font-size:1.05em;padding:6px;display:block}' +
-    '.rule-accordion .count{color:#555;margin-left:8px;font-weight:600}' +
-    '.rule-accordion .badge{background:#eee;border-radius:4px;padding:2px 6px;margin-left:6px;font-size:0.8em}' +
-    '.rule-table{width:100%;border-collapse:collapse;margin-top:8px}' +
-    '.rule-table th,.rule-table td{border:1px solid #ddd;padding:8px;text-align:left}' +
-    '</style>' +
-    '</head>' +
-    '<body>' +
-    '<h1>Axe Aggregate Report</h1>' +
-    '<section>' +
-    '<h2>Summary per URL</h2>' +
-    '<table id="reports-table">' +
-    '<thead><tr><th>URL</th><th>Violations</th><th>Passes</th><th>JSON</th></tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table>' +
-    '</section>' +
-    '<section>' +
-    '<h2>Issues across pages</h2>' +
-    '<p class="small">Issues are deduplicated by rule + selector. Expand a rule to see per-selector items, affected pages and JSON links.</p>' +
-    '<input id="filter" type="search" placeholder="Filter by id, help, selector or URL..." />' +
-    '<div id="issues-accordion">' + issuesHtml + '</div>' +
-    '</section>' +
-    '<script>const filterEl=document.getElementById("filter");filterEl.addEventListener("input",()=>{const q=filterEl.value.toLowerCase();document.querySelectorAll("#issues-accordion details").forEach(d=>{d.style.display=d.innerText.toLowerCase().includes(q)?"":"none";});});</script>' +
-    '</body>' +
-    '</html>';
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>Axe Aggregate Report</title><meta name="viewport" content="width=device-width,initial-scale=1" /><style>
+:root{--brand:#102b4e;--accent:#2c6ecb;--bg:#f0f2f5;--card:#ffffff;--text:#1f2937;--border:#e5e7eb;--critical:#dc2626;--serious:#ea580c;--moderate:#d97706;--minor:#2563eb}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;padding:24px;background:var(--bg);color:var(--text);line-height:1.6;margin:0}
+.app-container{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
+
+/* Header */
+header{grid-column:1/-1;background:linear-gradient(135deg, var(--brand), #1e40af);color:#fff;padding:24px 32px;border-radius:12px;box-shadow:0 4px 12px rgba(16,43,78,0.15);display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:1.75rem;font-weight:700;letter-spacing:-0.5px}
+.date{opacity:0.8;font-size:0.9rem;margin-top:4px}
+.kpi-group{display:flex;gap:24px}
+.kpi-mini{background:rgba(255,255,255,0.1);padding:12px 20px;border-radius:8px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.1);min-width:100px;text-align:center}
+.kpi-mini .val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-mini .lbl{font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;opacity:0.9;margin-top:4px}
+.btn{background:#fff;color:var(--brand);border:none;padding:10px 20px;border-radius:6px;font-weight:600;cursor:pointer;transition:transform 0.1s, box-shadow 0.1s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+
+/* Layout */
+main{display:flex;flex-direction:column;gap:24px}
+aside{display:flex;flex-direction:column;gap:24px}
+.card{background:var(--card);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);padding:24px;border:1px solid var(--border)}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:16px}
+.card h2{font-size:1.25rem;margin:0;color:var(--brand);font-weight:700}
+
+/* Table */
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:0.95rem}
+th{background:var(--brand);color:#fff;text-align:left;padding:14px 16px;font-weight:600;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.5px}
+th:first-child{border-top-left-radius:8px}
+th:last-child{border-top-right-radius:8px}
+td{padding:14px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:nth-child(even){background:#f8fafc}
+tr:hover td{background:#eff6ff}
+a{color:var(--accent);text-decoration:none;font-weight:500}
+a:hover{text-decoration:underline}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.badge.critical{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.badge.serious{background:#ffedd5;color:#9a3412;border:1px solid #fed7aa}
+.badge.moderate{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.badge.minor{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+.text-critical{color:var(--critical);font-weight:700}
+.text-serious{color:var(--serious);font-weight:700}
+.text-moderate{color:var(--moderate);font-weight:700}
+.text-minor{color:var(--minor);font-weight:700}
+
+/* Accordion */
+.rule-accordion{border:1px solid var(--border);border-radius:8px;margin-bottom:16px;background:#fff;overflow:hidden}
+.rule-accordion summary{padding:16px 20px;cursor:pointer;font-weight:500;display:flex;align-items:center;justify-content:space-between;background:#fff;transition:background 0.2s}
+.rule-accordion summary:hover{background:#f8fafc}
+.rule-accordion[open] summary{background:#f1f5f9;border-bottom:1px solid var(--border)}
+.rule-name{font-weight:700;color:var(--brand);font-size:1rem}
+.rule-meta{display:flex;gap:12px;align-items:center}
+
+/* Chart */
+.donut-chart{width:220px;height:220px;border-radius:50%;margin:20px auto;position:relative;background:conic-gradient(#e5e7eb 0deg 360deg)}
+.donut-hole{width:140px;height:140px;background:var(--card);border-radius:50%;position:absolute;top:40px;left:40px;display:flex;align-items:center;justify-content:center;flex-direction:column;box-shadow:inset 0 2px 6px rgba(0,0,0,0.05)}
+.chart-legend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:20px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text)}
+.dot{width:12px;height:12px;border-radius:4px}
+
+/* Missing Styles */
+.top-list{list-style:none;padding:0;margin:0}
+.top-list li{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);font-size:0.9rem}
+.top-list li:last-child{border-bottom:none}
+.top-list .count{background:var(--bg);padding:2px 8px;border-radius:12px;font-weight:600;font-size:0.8rem}
+.meta-pill{background:var(--bg);padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;color:var(--text);border:1px solid var(--border)}
+.text-red{color:var(--critical);font-weight:700}
+.text-green{color:#16a34a;font-weight:700}
+
+@media(max-width:1000px){.app-container{grid-template-columns:1fr}header{flex-direction:column;align-items:stretch;gap:20px}.kpi-group{justify-content:space-between}}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <header>
+    <div>
+      <h1>Accessibility Audit — Report</h1>
+      <div class="date" id="report-date">Generated: -</div>
+    </div>
+    <div class="kpi-group">
+      <div class="kpi-mini"><div class="val" id="kpi-urls">-</div><div class="lbl">Total URLs</div></div>
+      <div class="kpi-mini"><div class="val" id="kpi-issues">-</div><div class="lbl">Total Issues</div></div>
+      <div class="kpi-mini"><div class="val" id="kpi-score">-</div><div class="lbl">Score</div></div>
+      <button class="btn" id="exportBtn">Export JSON</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="card-header">
+        <h2>Summary Table</h2>
+      </div>
+      <div class="table-controls">
+        <span id="table-info">Showing all rows</span>
+        <div class="pagination">
+          <label>Page size: <select id="pageSize"><option>10</option><option>25</option><option>50</option><option value="all">All</option></select></label>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="reports-table">
+          <thead><tr><th>URL</th><th>Violations</th><th>Passes</th><th>JSON</th></tr></thead>
+          <tbody>
+            ${rows}
+          </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2>Issues (Grouped by Rule)</h2>
+        <input id="filter" type="search" placeholder="Filter rules..." style="padding:8px;border:1px solid #d1d5db;border-radius:6px;width:240px">
+      </div>
+      <div id="issues-accordion">
+        ${issuesHtml}
+      </div>
+    </section>
+  </main>
+
+  <aside>
+    <div class="card">
+      <h2>Impact Distribution</h2>
+      <div class="donut-chart" id="impact-chart">
+        <div class="donut-hole"></div>
+      </div>
+      <div class="chart-legend" id="chart-legend"></div>
+    </div>
+    <div class="card">
+      <h2>Top Rules</h2>
+      <ul class="top-list" id="top-rules"></ul>
+    </div>
+  </aside>
+</div>
+
+<script>
+  // Set date
+  document.getElementById('report-date').innerText = 'Generated: ' + new Date().toLocaleString();
+
+  // Filter
+  const filterEl = document.getElementById('filter');
+  filterEl.addEventListener('input', () => {
+    const q = filterEl.value.toLowerCase();
+    document.querySelectorAll('#issues-accordion details').forEach(d => {
+      const text = d.innerText.toLowerCase();
+      d.style.display = text.includes(q) ? '' : 'none';
+    });
+  });
+
+  // Compute Dashboard & Enhance UI
+  function computeDashboard(){
+    try {
+      // 1. Enhance Table (Sort & Pagination placeholder)
+      const table = document.getElementById('reports-table');
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      
+      // Update KPIs
+      let totalIssues = 0;
+      let totalPasses = 0;
+      rows.forEach(r => {
+        const cells = r.querySelectorAll('td');
+        if(cells.length >= 4) {
+          const v1 = parseInt(cells[1].innerText) || 0;
+          const p1 = parseInt(cells[2].innerText) || 0;
+          
+          totalIssues += v1;
+          totalPasses += p1;
+          
+          // Style cells
+          if(v1 > 0) cells[1].classList.add('text-red');
+          if(p1 > 0) cells[2].classList.add('text-green');
+        }
+      });
+
+      const totalChecks = totalIssues + totalPasses;
+      const score = totalChecks ? Math.round((totalPasses / totalChecks) * 100) : 0;
+
+      document.getElementById('kpi-urls').innerText = rows.length;
+      document.getElementById('kpi-issues').innerText = totalIssues;
+      document.getElementById('kpi-score').innerText = score + '%';
+      document.getElementById('table-info').innerText = \`Showing 1-\${rows.length} of \${rows.length}\`;
+
+      // 2. Enhance Accordions (Right aligned badges)
+      const impacts = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+      const severityWeight = { critical: 4, serious: 3, moderate: 2, minor: 1 };
+      const ruleCounts = [];
+
+      document.querySelectorAll('.rule-accordion').forEach(acc => {
+        // Extract data from existing structure
+        const summary = acc.querySelector('summary');
+        const strong = summary.querySelector('strong');
+        const ruleId = strong ? strong.innerText : 'Unknown';
+        
+        // Find impact from inner table
+        let ruleImpact = 'minor';
+        let maxSeverity = 0;
+        
+        // Count occurrences & URLs
+        let ruleOccurrences = 0;
+        const uniqueUrls = new Set();
+        
+        acc.querySelectorAll('tbody tr').forEach(r => {
+          const cells = r.querySelectorAll('td');
+          if(cells.length > 0){
+            let rawImp = cells[0].textContent.trim().toLowerCase();
+            const occ = parseInt(cells[3]?.innerText || '1') || 1;
+            
+            // Normalize impact
+            let imp = 'minor';
+            if(rawImp.includes('critical')) imp = 'critical';
+            else if(rawImp.includes('serious')) imp = 'serious';
+            else if(rawImp.includes('moderate')) imp = 'moderate';
+            else if(rawImp.includes('minor')) imp = 'minor';
+
+            // Update rule impact based on the highest severity found
+            const weight = severityWeight[imp] || 0;
+            if(weight > maxSeverity){
+              maxSeverity = weight;
+              ruleImpact = imp;
+            }
+
+            // Visual: Add badge if missing
+            if(!cells[0].querySelector('.badge')){
+               cells[0].innerHTML = \`<span class="badge \${imp}">\${imp}</span>\`;
+            }
+
+            ruleOccurrences += occ;
+            if(impacts[imp] !== undefined) impacts[imp] += occ;
+            
+            // Parse URLs from cell 2
+            const urlLinks = cells[2].querySelectorAll('a');
+            urlLinks.forEach(a => uniqueUrls.add(a.href));
+          }
+        });
+
+        // Rebuild Summary HTML
+        summary.innerHTML = \`
+          <div class="rule-name">\${ruleId}</div>
+          <div class="rule-meta">
+            <span class="badge \${ruleImpact}">\${ruleImpact}</span>
+            <span class="meta-pill" title="Occurrences">\${ruleOccurrences}</span>
+            <span class="meta-pill" title="Affected URLs">\${uniqueUrls.size} urls</span>
+          </div>
+        \`;
+        
+        ruleCounts.push({name: ruleId, count: ruleOccurrences});
+      });
+
+      // 3. Update Chart
+      const totalImp = Object.values(impacts).reduce((a,b)=>a+b,0);
+      const colors = { critical: '#dc2626', serious: '#ea580c', moderate: '#d97706', minor: '#2563eb' };
+      
+      if(totalImp > 0){
+        let currentDeg = 0;
+        const gradientParts = [];
+        const legendEl = document.getElementById('chart-legend');
+        if(legendEl) legendEl.innerHTML = '';
+        
+        for(const [k, v] of Object.entries(impacts)){
+          if(v > 0){
+            const deg = (v / totalImp) * 360;
+            gradientParts.push(\`\${colors[k]} \${currentDeg}deg \${currentDeg + deg}deg\`);
+            currentDeg += deg;
+            
+            // Add to legend
+            if(legendEl) {
+              const item = document.createElement('div');
+              item.className = 'legend-item';
+              item.innerHTML = \`<div class="dot" style="background:\${colors[k]}"></div><span>\${k} (\${v})</span>\`;
+              legendEl.appendChild(item);
+            }
+          }
+        }
+        document.getElementById('impact-chart').style.background = \`conic-gradient(\${gradientParts.join(', ')})\`;
+      } else {
+         document.getElementById('impact-chart').style.background = '#e5e7eb';
+         const legendEl = document.getElementById('chart-legend');
+         if(legendEl) legendEl.innerHTML = '<div class="legend-item">No issues found</div>';
+      }
+
+      // 4. Top Rules
+      ruleCounts.sort((a,b) => b.count - a.count);
+      const topList = document.getElementById('top-rules');
+      if(topList) {
+        topList.innerHTML = '';
+        ruleCounts.slice(0, 5).forEach(r => {
+          const li = document.createElement('li');
+          li.innerHTML = \`<span>\${r.name}</span><span class="count">\${r.count}</span>\`;
+          topList.appendChild(li);
+        });
+      }
+    } catch (e) {
+      console.error('Dashboard error:', e);
+    }
+  }
+
+  // Run computation
+  computeDashboard();
+
+  // Export
+  document.getElementById('exportBtn').addEventListener('click', async () => {
+    try{
+      const r = await fetch('../all-results.json');
+      if(!r.ok) throw new Error();
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'all-results.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }catch(e){
+      alert('Could not fetch ../all-results.json. If opening locally, use a server.');
+    }
+  });
+</script>
+</body>
+</html>`;
 }
 
 module.exports = { generateHtml, generateAggregate };

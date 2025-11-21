@@ -137,12 +137,14 @@ async function main() {
   // 1. Group violations by Signature (Rule + Selector)
   const issuesMap = new Map(); 
   const uniqueRules = new Set();
+  const ruleHelpMap = new Map();
 
   results.forEach(res => {
     const url = res.url;
     if (res.violations) {
       res.violations.forEach(v => {
         uniqueRules.add(v.id); // Collect rule IDs for JQL
+        ruleHelpMap.set(v.id, v.help); // Store help text
         v.nodes.forEach(node => {
           const selector = node.target.join(', ');
           const sig = getIssueSignature(v.id, selector);
@@ -189,12 +191,18 @@ async function main() {
     }
 
     // CONSTRUCCIÓN DEL JQL DINÁMICO
-    // Query: project... AND summary ~ "Accessibility" AND ( (summary ~ "rule1" OR description ~ "rule1") OR ... )
-    const ruleClauses = Array.from(uniqueRules).map(rule => `(summary ~ "${rule}" OR description ~ "${rule}")`);
+    // Query: project... AND (labels = "Accessibility" OR text ~ "Accessibility") AND ( (text ~ "rule1" OR text ~ "help1") OR ... )
+    const ruleClauses = Array.from(uniqueRules).map(ruleId => {
+        const help = ruleHelpMap.get(ruleId);
+        const safeHelp = help ? help.replace(/"/g, '\\"') : ruleId;
+        // Usamos 'text' (equivalente a textfields) para buscar en Summary, Description, Environment, etc.
+        return `(text ~ "${ruleId}" OR text ~ "${safeHelp}")`;
+    });
+    
     const rulesPart = ruleClauses.length > 0 ? `AND (${ruleClauses.join(' OR ')})` : '';
 
     // JQL Final
-    const jql = `${projectJql} AND summary ~ "Accessibility" ${rulesPart}`;
+    const jql = `${projectJql} AND (labels = "Accessibility" OR text ~ "Accessibility") ${rulesPart}`;
     console.log(`   Query: ${jql}`);
     
     // Use POST /search/jql
@@ -210,6 +218,8 @@ async function main() {
     issues.forEach(issue => {
       const ticketInfo = { key: issue.key, status: issue.fields.status.name };
       const summary = issue.fields.summary || '';
+      // Convertimos la descripción (ADF Object) a string para buscar texto dentro de ella
+      const description = issue.fields.description ? JSON.stringify(issue.fields.description) : '';
 
       // A. Check labels for exact signature match 'sig-MD5...'
       (issue.fields.labels || []).forEach(l => {
@@ -219,11 +229,14 @@ async function main() {
           }
       });
 
-      // B. Map by Rule (Fuzzy Match based on Summary)
-      uniqueRules.forEach(rule => {
-         if (summary.includes(rule)) {
-             if (!ticketsByRule.has(rule)) ticketsByRule.set(rule, []);
-             ticketsByRule.get(rule).push(ticketInfo);
+      // B. Map by Rule (Fuzzy Match based on Summary OR Description)
+      uniqueRules.forEach(ruleId => {
+         const help = ruleHelpMap.get(ruleId);
+         // Check if summary OR description contains Rule ID OR Help Text
+         if (summary.includes(ruleId) || (help && summary.includes(help)) ||
+             description.includes(ruleId) || (help && description.includes(help))) {
+             if (!ticketsByRule.has(ruleId)) ticketsByRule.set(ruleId, []);
+             ticketsByRule.get(ruleId).push(ticketInfo);
          }
       });
     });

@@ -88,7 +88,41 @@ function generateHtml(results = {}, url = '', opts = {}) {
     '</html>';
 }
 
+function generateCsv(report) {
+  const csvHeaders = ['URL', 'Rule ID', 'Impact', 'Description', 'Help', 'Help URL', 'HTML Element', 'Selector'];
+  const rows = [csvHeaders.join(',')];
+
+  const url = report.url;
+  const violations = report.violations || [];
+
+  violations.forEach(v => {
+    const ruleId = v.id;
+    const impact = v.impact;
+    const desc = `"${(v.description || '').replace(/"/g, '""')}"`;
+    const help = `"${(v.help || '').replace(/"/g, '""')}"`;
+    const helpUrl = v.helpUrl;
+
+    (v.nodes || []).forEach(node => {
+       const html = `"${(node.html || '').replace(/"/g, '""')}"`;
+       const selector = `"${(node.target || []).join('; ').replace(/"/g, '""')}"`;
+
+       rows.push([`"${url}"`, ruleId, impact, desc, help, helpUrl, html, selector].join(','));
+    });
+  });
+
+  return rows.join('\n');
+}
+
 function generateAggregate(reports = [], issues = []) {
+  // Helper to generate consistent relative paths
+  const getRelativeJsonPath = (url) => {
+      const safeName = url
+        .replace(/^https?:\/\//, '')
+        .replace(/[^a-z0-9]/gi, '_')
+        .toLowerCase();
+      return `../per-url/${safeName}.json`;
+  };
+
   // Flatten reports so each run (normal or zoom) is its own row
   const rows = (reports || []).map(r => {
     const isZoom = typeof r.url === 'string' && /\(zoom200\)$/.test(r.url);
@@ -106,14 +140,25 @@ function generateAggregate(reports = [], issues = []) {
         badge = ' <span class="badge minor" style="font-size:0.7em; background:#e0f2fe; color:#0369a1;">RESPONSIVE</span>';
     }
 
+    // 1. Limpiar URL para el href (quitar "(resp200)")
+    const cleanUrl = r.url.replace(/\s*\(.*?\)$/, '').trim();
+    
+    // 2. Generar ruta relativa al CSV (prefer r.csvPath if available)
+    let csvPath = r.csvPath;
+    if (!csvPath) {
+        // Fallback logic if not provided
+        const jsonPath = getRelativeJsonPath(r.url);
+        csvPath = jsonPath.replace('.json', '.csv');
+    }
+
     return '<tr>' +
       '<td><div style="display:flex; align-items:center; gap:8px;">' + 
-        (r.htmlPath ? ('<a href="' + escapeHtml(r.htmlPath) + '">' + urlDisplay + '</a>') : urlDisplay) + 
+        ('<a href="' + escapeHtml(cleanUrl) + '" target="_blank">' + urlDisplay + '</a>') + 
         badge + 
       '</div></td>' +
       '<td>' + (r.violationsCount || 0) + '</td>' +
       '<td>' + (r.passesCount || 0) + '</td>' +
-      '<td>' + (r.jsonPath ? ('<a href="' + escapeHtml(r.jsonPath) + '">JSON</a>') : '-') + '</td>' +
+      '<td>' + ('<a href="' + escapeHtml(csvPath) + '" download>CSV</a>') + '</td>' +
       '</tr>';
   }).join('\n');
 
@@ -121,7 +166,7 @@ function generateAggregate(reports = [], issues = []) {
   const issuesByRule = {};
   (issues || []).forEach(it => {
     const id = it.id || 'unknown';
-    if(!issuesByRule[id]) issuesByRule[id] = { id, help: it.help || '', items: [], total: 0 };
+    if(!issuesByRule[id]) issuesByRule[id] = { id, help: it.help || '', items: [], total: 0, helpUrl: it.helpUrl };
     issuesByRule[id].items.push({ impact: it.impact, selector: it.selector, pages: it.pages || [], occurrences: it.occurrences || 0, example: it.example });
     issuesByRule[id].total += it.occurrences || 0;
   });
@@ -144,32 +189,29 @@ function generateAggregate(reports = [], issues = []) {
             badge = ' <span class="badge minor" style="font-size:0.7em; background:#e0f2fe; color:#0369a1;">RESPONSIVE</span>';
         }
 
-        // Find report for JSON link
-        let report = reports.find(r => r.url === p);
-        if (!report && isZoom) {
-             const base = p.replace(/\s*\(zoom200\)$/, '');
-             report = reports.find(r => r.url === base || r.url === (base + ' (zoom200)'));
-        }
-
-        const jsonHref = report && report.jsonPath ? report.jsonPath : '#';
+        // Use consistent relative path for JSON link
+        const jsonHref = getRelativeJsonPath(p);
         
-        return '<a href="' + escapeHtml(jsonHref) + '" style="display:block;margin-bottom:4px;text-decoration:none;color:inherit">' + 
+        return '<a href="' + escapeHtml(jsonHref) + '" target="_blank" style="display:block;margin-bottom:4px;text-decoration:none;color:inherit">' + 
                '<span style="text-decoration:underline;color:#2c6ecb">' + display + '</span>' + 
                badge + 
                '</a>';
       }).join('');
 
       const signature = getIssueSignature(ruleId, item.selector);
+      const helpLink = rule.helpUrl ? '<a href="' + escapeHtml(rule.helpUrl) + '" target="_blank" style="color:#2c6ecb;text-decoration:underline">How to fix</a>' : '-';
+
       return '<tr data-signature="' + signature + '">' +
         '<td><span class="badge ' + escapeHtml(item.impact || '') + '">' + escapeHtml(item.impact || '') + '</span></td>' +
         '<td>' + escapeHtml(item.selector || '') + '</td>' +
+        '<td>' + helpLink + '</td>' +
         '<td>' + pagesHtml + '</td>' +
         '<td>' + (item.occurrences || 0) + '</td>' +
         '</tr>';
-    }).join('\n') || '<tr><td colspan="4">No items</td></tr>';
+    }).join('\n') || '<tr><td colspan="5">No items</td></tr>';
 
     return '<details class="rule-accordion">' + summary + '<div class="rule-body">' +
-      '<table class="rule-table"><thead><tr><th>Impact</th><th>Selector</th><th>Pages (JSON)</th><th>Occurrences</th></tr></thead><tbody>' + rowsInner + '</tbody></table>' +
+      '<table class="rule-table"><thead><tr><th>Impact</th><th>Selector</th><th>How to Fix</th><th>Pages (JSON)</th><th>Occurrences</th></tr></thead><tbody>' + rowsInner + '</tbody></table>' +
       '</div></details>';
   }).join('\n');
 
@@ -282,7 +324,7 @@ a:hover{text-decoration:underline}
       </div>
       <div style="overflow-x:auto">
         <table id="reports-table">
-          <thead><tr><th>URL</th><th>Violations</th><th>Passes</th><th>JSON</th></tr></thead>
+          <thead><tr><th>URL</th><th>Violations</th><th>Passes</th><th>CSV</th></tr></thead>
           <tbody>
             ${rows}
           </tbody>
@@ -550,24 +592,17 @@ a:hover{text-decoration:underline}
   computeDashboard();
 
   // Export
-  document.getElementById('exportBtn').addEventListener('click', async () => {
-    try{
-      const r = await fetch('../all-results.json');
-      if(!r.ok) throw new Error();
-      const blob = await r.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'all-results.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }catch(e){
-      alert('Could not fetch ../all-results.json. If opening locally, use a server.');
-    }
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = '../all-results.csv';
+    a.download = 'accessibility-report.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 </script>
 </body>
 </html>`;
 }
 
-module.exports = { generateHtml, generateAggregate };
+module.exports = { generateHtml, generateAggregate, generateCsv };

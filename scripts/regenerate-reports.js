@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { generateHtml, generateAggregate } = require('../src/generate-report');
+const { generateHtml, generateAggregate, generateCsv } = require('../src/generate-report');
 
 const reportsDir = path.resolve(__dirname, '..', 'reports');
 const perUrlDir = path.join(reportsDir, 'per-url');
@@ -59,9 +59,27 @@ files.forEach(f => {
   const isArray = Array.isArray(obj);
   const reportObj = isArray ? (obj[0] || {}) : obj;
   
-  const url = reportObj.url || f.replace('.json','');
+  let url = reportObj.url || f.replace('.json','');
+
+  // Detect responsive/zoom from filename if not present in URL
+  if (f.includes('_resp')) {
+      const match = f.match(/_resp(\d+)_/);
+      const pct = match ? match[1] : '200';
+      if (!url.includes(`(resp${pct})`)) {
+          url += ` (resp${pct})`;
+      }
+  } else if (f.includes('_zoom')) {
+      const match = f.match(/_zoom(\d+)_/);
+      const pct = match ? match[1] : '200';
+      if (!url.includes(`(zoom${pct})`)) {
+          url += ` (zoom${pct})`;
+      }
+  }
+
   const htmlName = f.replace(/\.json$/, '.html');
   const htmlPath = path.join(sourceDir, htmlName);
+  const csvName = f.replace(/\.json$/, '.csv');
+  const csvPath = path.join(sourceDir, csvName);
 
   // generate per-URL HTML
   // If it's an array, we might skip generating per-url HTML or handle it differently
@@ -69,6 +87,12 @@ files.forEach(f => {
   if (!isArray) {
     const html = generateHtml(obj, url, { generatedAt: obj.timestamp });
     fs.writeFileSync(htmlPath, html, 'utf8');
+    
+    // Generate per-URL CSV
+    // Ensure obj has the correct URL (with resp/zoom suffix) for the CSV content
+    const csvObj = { ...obj, url: url };
+    const csvContent = generateCsv(csvObj);
+    fs.writeFileSync(csvPath, csvContent, 'utf8');
   }
 
   const violations = isArray ? [] : (obj.violations || []);
@@ -76,10 +100,9 @@ files.forEach(f => {
 
   const summary = {
     url: url,
-    jsonPath: f, // Relative to sourceDir, but for aggregate we might want relative to aggregate file? 
-    // Actually, let's keep it simple. If we are in reports/aggregate/agg.html, and json is in reports/per-url/x.json
-    // Link should be ../per-url/x.json
+    jsonPath: f, 
     htmlPath: htmlName,
+    csvPath: csvName,
     violationsCount: violations.length,
     passesCount: passes.length
   };
@@ -88,9 +111,11 @@ files.forEach(f => {
   if (sourceDir === perUrlDir) {
       summary.jsonPath = `../per-url/${f}`;
       summary.htmlPath = `../per-url/${htmlName}`;
+      summary.csvPath = `../per-url/${csvName}`;
   } else {
       summary.jsonPath = `../${f}`;
       summary.htmlPath = `../${htmlName}`;
+      summary.csvPath = `../${csvName}`;
   }
 
   summaries.push(summary);
@@ -100,7 +125,7 @@ files.forEach(f => {
     (v.nodes || []).forEach(n => {
       const selectors = (n.target || []).join(', ');
       const key = v.id + '||' + selectors;
-      const existing = issueMap.get(key) || { id: v.id, help: v.help, impact: v.impact, selector: selectors, occurrences: 0, pages: new Set() };
+      const existing = issueMap.get(key) || { id: v.id, help: v.help, impact: v.impact, selector: selectors, occurrences: 0, pages: new Set(), helpUrl: v.helpUrl };
       existing.occurrences += 1;
       existing.pages.add(url + (f.includes('zoom200') ? ' (zoom200)' : ''));
       issueMap.set(key, existing);
@@ -114,7 +139,8 @@ const issues = Array.from(issueMap.values()).map(it => ({
   impact: it.impact,
   selector: it.selector,
   occurrences: it.occurrences,
-  pages: Array.from(it.pages)
+  pages: Array.from(it.pages),
+  helpUrl: it.helpUrl
 }));
 
 const aggregateHtml = generateAggregate(summaries, issues);

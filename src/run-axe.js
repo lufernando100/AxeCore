@@ -419,7 +419,9 @@ if (require.main === module) {
         let out = argv.output;
         if (argv.perUrlDir) {
           try{ fs.mkdirSync(path.resolve(argv.perUrlDir), { recursive: true }); }catch(e){}
-          const fileName = `result-${encodeURIComponent(u).slice(0,60)}.json`;
+          // Use safe name matching generate-report.js logic
+          const safeName = u.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          const fileName = `${safeName}.json`;
           out = path.resolve(argv.perUrlDir, fileName);
         } else if(out && urls.length > 1){
           const base = out.replace(/\.json$/,'');
@@ -454,7 +456,10 @@ if (require.main === module) {
             // if perUrlDir specified, place zoom file into that dir
             let outZoomResolved = outZoom;
             if (argv.perUrlDir) {
-              const fileNameZ = `result-${encodeURIComponent(u).slice(0,60)}-resp${RESPONSIVE.zoomPercent}.json`;
+              // Use safe name matching generate-report.js logic for responsive url: "url (resp200)"
+              const respUrl = u + ` (resp${RESPONSIVE.zoomPercent})`;
+              const safeName = respUrl.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+              const fileNameZ = `${safeName}.json`;
               outZoomResolved = path.resolve(argv.perUrlDir, fileNameZ);
             }
             console.log('Running responsive zoom pass (method:', RESPONSIVE.method + ', percent:', RESPONSIVE.zoomPercent + ') for', u);

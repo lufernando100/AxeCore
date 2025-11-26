@@ -10,7 +10,11 @@
     "preview-config": "node ./scripts/preview-config.js --config axe.config.json",
     "axe:learn": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt --bestPracticeMode learn",
     "axe:no-best": "node ./src/run-axe.js --config axe.config.json --input ./test-urls.txt --bestPracticeMode off",
-    "jira:sync": "node ./src/jira-sync.js"
+    "axe:report": "node ./scripts/regenerate-reports.js",
+    "jira:sync": "node ./src/jira-sync.js",
+    "save:baseline": "node ./src/save-baseline.js",
+    "check:regression": "node ./src/regression-check.js",
+    "axe:regression": "npm run axe:all && npm run check:regression"
   },
   "keywords": [],
   "author": "",

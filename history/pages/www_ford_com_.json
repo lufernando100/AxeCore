@@ -1,0 +1,63 @@
+{
+  "url": "https://www.ford.com/",
+  "timestamp": "2025-11-25T13:36:16.318Z",
+  "violations": [
+    {
+      "id": "aria-valid-attr-value",
+      "nodes": [
+        [
+          "input[aria-owns=\"fgx-brand-searchFooterResults\"]"
+        ]
+      ]
+    },
+    {
+      "id": "color-contrast",
+      "nodes": [
+        [
+          ".gdux--lightTheme.pad-top-56.pad-bottom-none > .pad-bottom-24.cmp-grid__text-container > .cmp-grid__eyebrow-container > .cmp-grid__eyebrow.fade.fade-in"
+        ],
+        [
+          ".gdux--lightTheme.pad-top-56.pad-bottom-none > .pad-bottom-24.cmp-grid__text-container > .cmp-grid__heading-container > .cmp-grid__heading"
+        ],
+        [
+          ".pad-top-56.pad-bottom-none.inherit > .pad-bottom-24.cmp-grid__text-container > .cmp-grid__eyebrow-container > .cmp-grid__eyebrow.fade.fade-in"
+        ],
+        [
+          ".pad-top-56.pad-bottom-none.inherit > .pad-bottom-24.cmp-grid__text-container > .cmp-grid__heading-container > .cmp-grid__heading.fade.fade-in"
+        ],
+        [
+          ".grid:nth-child(39) > .cmp-grid > .pad-top-56.pad-bottom-56.inherit > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__eyebrow-container > .cmp-grid__eyebrow.fade.fade-in"
+        ],
+        [
+          ".grid:nth-child(39) > .cmp-grid > .pad-top-56.pad-bottom-56.inherit > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__heading-container > .cmp-grid__heading.fade.fade-in"
+        ],
+        [
+          "#mediaAccordion-The\\ Ford\\ Owner\\ Experience > .fade.fade-in"
+        ],
+        [
+          ".grid:nth-child(42) > .cmp-grid > .pad-top-56.pad-bottom-56.inherit > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__eyebrow-container > .cmp-grid__eyebrow.fade.fade-in"
+        ],
+        [
+          ".grid:nth-child(42) > .cmp-grid > .pad-top-56.pad-bottom-56.inherit > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__heading-container > .cmp-grid__heading.fade.fade-in"
+        ],
+        [
+          ".background-black > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__eyebrow-container > .cmp-grid__eyebrow.fade.fade-in"
+        ],
+        [
+          ".background-black > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__heading-container > .cmp-grid__heading.fade.fade-in"
+        ],
+        [
+          "#onetrust-pc-btn-handler"
+        ]
+      ]
+    },
+    {
+      "id": "frame-title",
+      "nodes": [
+        [
+          "#lightbox_pop"
+        ]
+      ]
+    }
+  ]
+}

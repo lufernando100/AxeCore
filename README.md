@@ -1,43 +1,96 @@
 ````markdown
-# Axe Automation
+# Axe Automation Tool
 
-Small utility to run Axe Core with Playwright and generate a human-friendly HTML report.
+Automated accessibility testing tool using Axe Core and Playwright. Supports bulk scanning, regression testing, and Jira integration.
 
-Requirements
-- Node.js 16+ (or the Node version compatible with Playwright in package.json)
+Out Of Scope
 
-Installation
+- Keyboard Navigation
+- Screen Reader
+- Heading Validation
 
-In PowerShell (from the project root):
+
+## 🚀 Features
+
+- **Bulk Scanning**: Scan multiple URLs defined in `test-urls.txt`.
+- **Visual Reports**: Generates HTML dashboards for overall status and regression diffs.
+- **Jira Integration**: Automatically syncs accessibility issues to Jira.
+- **Regression Testing**: Compare current results against a baseline to detect new issues.
+- **Baseline Management**: Scalable baseline storage using JSON sharding.
+
+## 📋 Prerequisites
+
+- Node.js 16+
+- NPM
+
+## 🛠️ Installation
 
 ```powershell
 npm install
-# or if you use yarn:
-# yarn
 ```
 
-Usage
+## 🏃‍♂️ Usage
 
-Run the audit against a public or local URL:
-
+### 1. Basic Audit (Bulk Scan)
+Runs Axe against all URLs in `test-urls.txt` and generates reports.
 ```powershell
-# Example
-npm run axe -- --url "https://example.com"
-
-# If you want to specify an output JSON file:
-npm run axe -- --url "https://example.com" --output ./reports/example.json
+npm run axe:all
 ```
 
-Output
-- Produces a JSON with the raw results (axe run) and an HTML file with a summary and per-violation details.
+### 2. Regression Testing Workflow
+This is the recommended workflow to ensure no new bugs are introduced.
 
-Notes
-- The tool uses Playwright (Chromium by default) in headless mode.
-- If you need to audit pages that require authentication, the CLI can be extended to accept cookies or login steps.
+**Step A: Run Audit & Check Regression**
+Runs the audit and compares it against the saved baseline.
+```powershell
+npm run axe:regression
+```
+*Output:* `reports/regression-report.html` (Visual Diff)
 
-Suggested next steps
-- Add options to run against multiple URLs in a single run.
-- Integrate with CI to fail the build on critical-impact violations.
-- Add unit tests and example workflows.
+**Step B: Check Regression Only**
+If you already ran an audit and just want to re-check the diff.
+```powershell
+npm run check:regression
+```
+
+**Step C: Update Baseline**
+If the new issues are expected or fixed, update the baseline to the current state.
+```powershell
+npm run save:baseline
+```
+
+### 3. Jira Synchronization
+Syncs the latest results to Jira (requires `.env` configuration).
+```powershell
+npm run jira:sync
+```
+
+## 📊 Reports
+
+Artifacts are generated in the `reports/` folder:
+
+- **`reports/aggregate/aggregate.html`**: Main dashboard with all issues and Jira status.
+- **`reports/regression-report.html`**: Visual report showing **New** vs **Resolved** issues.
+- **`reports/per-url/`**: Individual JSON/HTML reports for each URL.
+
+## ⚙️ Configuration
+
+- **`test-urls.txt`**: List of URLs to scan (one per line).
+- **`axe.config.json`**: Axe-core configuration (rules, tags, etc.).
+- **`.env`**: Environment variables for Jira (URL, User, Token).
+
+## 📂 Project Structure
+
+```
+├── history/pages/       # Baseline JSON files (one per URL)
+├── reports/             # Generated reports
+├── scripts/             # Utility scripts (cleanup, regeneration)
+├── src/                 # Source code
+│   ├── run-axe.js       # Main runner
+│   ├── regression-check.js # Regression logic
+│   ├── save-baseline.js # Baseline saver
+│   └── jira-sync.js     # Jira integration
+└── test-urls.txt        # Input URLs
+```
 
 ````

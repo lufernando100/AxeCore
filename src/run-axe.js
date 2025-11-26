@@ -484,6 +484,32 @@ if (require.main === module) {
       }
       // write aggregate if multiple
       if(aggregate.length){
+        // Write consolidated JSON for Jira Sync
+        const allResultsPath = argv.output || path.resolve(process.cwd(), 'reports/all-results.json');
+        try {
+            // We need to reconstruct the full results array from the per-url files to have the details needed for Jira
+            const fullResults = [];
+            for(const item of aggregate) {
+                if (item.jsonPath && fs.existsSync(item.jsonPath)) {
+                    const content = JSON.parse(fs.readFileSync(item.jsonPath, 'utf8'));
+                    
+                    // FIX: Ensure the URL in the content matches the unique URL in the aggregate (e.g. with suffix)
+                    // This prevents duplicate URLs in all-results.json which confuses save-baseline.js
+                    if (item.url && content.url !== item.url) {
+                        content.url = item.url;
+                    }
+
+                    // If content is array (legacy), spread it; if object, push it
+                    if(Array.isArray(content)) fullResults.push(...content);
+                    else fullResults.push(content);
+                }
+            }
+            fs.writeFileSync(allResultsPath, JSON.stringify(fullResults, null, 2));
+            console.log('Consolidated JSON results saved:', allResultsPath);
+        } catch(e) {
+            console.error('Failed to write consolidated JSON:', e.message);
+        }
+
         const { generateAggregate } = require('./generate-report');
         const issues = Array.from(issuesMap.values()).map(e=>({ id: e.id, help: e.help, impact: e.impact, selector: e.selector, pages: Array.from(e.pages), occurrences: e.count, example: e.example }));
         const aggHtml = generateAggregate(aggregate, issues);
@@ -511,7 +537,7 @@ if (require.main === module) {
             console.log('JSON results saved (responsive):', resZoom.outPath);
             console.log('HTML report generated (responsive):', resZoom.htmlPath);
           }
-        }catch(e){ console.warn('Error en corrida responsive para', argv.url, e.message || e); }
+        }catch(e){ console.warn('Error in responsive run for', argv.url, e.message || e); }
       }
     } else {
       console.error('You must specify --url or --input <file>');

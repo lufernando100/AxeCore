@@ -176,7 +176,7 @@ async function main() {
   try {
     console.log(`Querying Jira for existing automation tickets...`);
     
-    // SOPORTE MULTI-PROYECTO:
+    // MULTI-PROJECT SUPPORT:
     const projectEnv = process.env.JIRA_PROJECT_KEY || '';
     let projectJql = '';
     const projectsList = projectEnv.split(',').map(p => p.trim()).filter(p => p.length > 0);
@@ -190,12 +190,12 @@ async function main() {
       projectJql = 'project IS NOT EMPTY';
     }
 
-    // CONSTRUCCIÓN DEL JQL DINÁMICO
+    // DYNAMIC JQL CONSTRUCTION
     // Query: project... AND (labels = "Accessibility" OR text ~ "Accessibility") AND ( (text ~ "rule1" OR text ~ "help1") OR ... )
     const ruleClauses = Array.from(uniqueRules).map(ruleId => {
         const help = ruleHelpMap.get(ruleId);
         const safeHelp = help ? help.replace(/"/g, '\\"') : ruleId;
-        // Usamos 'text' (equivalente a textfields) para buscar en Summary, Description, Environment, etc.
+        // Using 'text' (equivalent to textfields) to search in Summary, Description, Environment, etc.
         return `(text ~ "${ruleId}" OR text ~ "${safeHelp}")`;
     });
     
@@ -218,7 +218,7 @@ async function main() {
     issues.forEach(issue => {
       const ticketInfo = { key: issue.key, status: issue.fields.status.name };
       const summary = issue.fields.summary || '';
-      // Convertimos la descripción (ADF Object) a string para buscar texto dentro de ella
+      // Convert description (ADF Object) to string to search text within it
       const description = issue.fields.description ? JSON.stringify(issue.fields.description) : '';
 
       // A. Check labels for exact signature match 'sig-MD5...'

@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 function load(file){
-  if(!fs.existsSync(file)) throw new Error('No existe ' + file);
+  if(!fs.existsSync(file)) throw new Error('Does not exist ' + file);
   return JSON.parse(fs.readFileSync(file,'utf-8'));
 }
 
@@ -28,7 +28,7 @@ function collectViolations(report){
 if(require.main === module){
   const argv = process.argv.slice(2);
   if(argv.length < 2){
-    console.error('Uso: node diff-violations.js <normal.json> <zoom.json>');
+    console.error('Usage: node diff-violations.js <normal.json> <zoom.json>');
     process.exit(2);
   }
   const [a,b] = argv;
@@ -51,12 +51,12 @@ if(require.main === module){
     const out = { a: path.basename(a), b: path.basename(b), onlyInA, onlyInB, counts: { a: ma.size, b: mb.size } };
     const outPath = path.join(path.dirname(b), `${path.basename(a).replace(/\.json$/,'')}-vs-${path.basename(b).replace(/\.json$/,'')}-diff.json`);
     fs.writeFileSync(outPath, JSON.stringify(out,null,2), 'utf-8');
-    console.log('Diff escrito en', outPath);
+    console.log('Diff written to', outPath);
     console.log(`Violations: ${ma.size} in ${path.basename(a)}, ${mb.size} in ${path.basename(b)}.`);
     console.log('Only in normal (A):', onlyInA.length);
     console.log('Only in zoom (B):', onlyInB.length);
     if(onlyInB.length){
-      console.log('\nMuestras de issues presentes solo en zoom (B):');
+      console.log('\nSamples of issues present only in zoom (B):');
       onlyInB.slice(0,10).forEach((v,i)=>{
         console.log(`${i+1}. ${v.id} [impact=${v.impact}] selector=${v.selector}`);
       });

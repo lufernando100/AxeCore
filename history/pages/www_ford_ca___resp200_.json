@@ -1,0 +1,46 @@
+{
+  "url": "https://www.ford.ca/ (resp200)",
+  "timestamp": "2025-11-25T13:36:16.316Z",
+  "violations": [
+    {
+      "id": "button-name",
+      "nodes": [
+        [
+          ".navbar-toggle"
+        ]
+      ]
+    },
+    {
+      "id": "color-contrast",
+      "nodes": [
+        [
+          "#hp_family_carousel-item-42ad3d254f-tabpanel > .teaser > .cmp-teaser__container[data-target-component=\"teaser\"] > .width-lg-12.width-md-8.activeDisclaimer > .contentContainer > .cmp-teaser__content--buttonWithAnimation.disableScroll.cmp-teaser__content > .largeCard.cmp-teaser__content--wrapper > div > .cmp-teaser__title-container[events=\"true\"] > .cmp-teaser__title > h2"
+        ],
+        [
+          "#hp_family_carousel-item-f600adc6cb-tabpanel > .teaser > .cmp-teaser__container[data-target-component=\"teaser\"] > .width-lg-12.width-md-8.activeDisclaimer > .contentContainer > .cmp-teaser__content--buttonWithAnimation.disableScroll.cmp-teaser__content > .largeCard.cmp-teaser__content--wrapper > div > .cmp-teaser__title-container[events=\"true\"] > .cmp-teaser__title > h2"
+        ],
+        [
+          "a[aria-label=\"Learn more about the F-150. \"] > .cmp-button__text"
+        ],
+        [
+          "#hp_family_carousel-item-c21eb2267f-tabpanel > .teaser > .cmp-teaser__container[data-target-component=\"teaser\"] > .width-lg-12.width-md-8.activeDisclaimer > .contentContainer > .cmp-teaser__content--buttonWithAnimation.disableScroll.cmp-teaser__content > .largeCard.cmp-teaser__content--wrapper > div > .cmp-teaser__title-container[events=\"true\"] > .cmp-teaser__title > h2"
+        ],
+        [
+          "a[aria-label=\"Learn more about the Bronco. \"] > .cmp-button__text"
+        ],
+        [
+          "#hpcarouseltarget-id > .cmp-carousel-slider__heading.fade.fade-in"
+        ],
+        [
+          ".inherit.pad-top-56.cmp-grid__container > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__heading-container > .cmp-grid__heading.fade.fade-in"
+        ],
+        [
+          ".cmp-grid__eyebrow"
+        ],
+        [
+          ".gdux--darkTheme > .cmp-grid__text-container.pad-bottom-56 > .cmp-grid__heading-container > .cmp-grid__heading.fade.fade-in"
+        ]
+      ]
+    }
+  ]
+}

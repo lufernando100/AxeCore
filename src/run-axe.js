@@ -429,7 +429,14 @@ if (require.main === module) {
         }
         const res = await runForOne(u, out);
         if(res){
-          aggregate.push({ url: u, jsonPath: res.outPath, htmlPath: res.htmlPath, violationsCount: (res.result.violations||[]).length, passesCount: (res.result.passes||[]).length });
+          aggregate.push({ 
+            url: u, 
+            jsonPath: res.outPath, 
+            htmlPath: res.htmlPath, 
+            violationsCount: (res.result.violations||[]).length, 
+            passesCount: (res.result.passes||[]).length,
+            violations: (res.result.violations||[]).map(v => ({ id: v.id, help: v.help, impact: v.impact }))
+          });
           // collect unique issues by rule id + selector (to find same component across pages)
           const viols = res.result.violations || [];
           for(const v of viols){
@@ -439,7 +446,7 @@ if (require.main === module) {
               const key = `${ruleId}:::${selector}`;
               const exHtml = (node.html || '').slice(0,200);
               if(!issuesMap.has(key)){
-                issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u]), count: 1, example: exHtml });
+                issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u]), count: 1, example: exHtml, helpUrl: v.helpUrl, tags: v.tags });
               } else {
                 const entry = issuesMap.get(key);
                 entry.pages.add(u);
@@ -465,7 +472,14 @@ if (require.main === module) {
             console.log('Running responsive zoom pass (method:', RESPONSIVE.method + ', percent:', RESPONSIVE.zoomPercent + ') for', u);
             const resZoom = await runForOne(u, outZoomResolved, zoomOpts);
             if(resZoom){
-              aggregate.push({ url: u + ` (resp${RESPONSIVE.zoomPercent})`, jsonPath: resZoom.outPath, htmlPath: resZoom.htmlPath, violationsCount: (resZoom.result.violations||[]).length, passesCount: (resZoom.result.passes||[]).length });
+              aggregate.push({ 
+                url: u + ` (resp${RESPONSIVE.zoomPercent})`, 
+                jsonPath: resZoom.outPath, 
+                htmlPath: resZoom.htmlPath, 
+                violationsCount: (resZoom.result.violations||[]).length, 
+                passesCount: (resZoom.result.passes||[]).length,
+                violations: (resZoom.result.violations||[]).map(v => ({ id: v.id, help: v.help, impact: v.impact }))
+              });
               // collect issues from zoom run as well
               const violsZ = resZoom.result.violations || [];
               for(const v of violsZ){
@@ -475,7 +489,7 @@ if (require.main === module) {
                   const key = `${ruleId}:::${selector}`;
                   const exHtml = (node.html || '').slice(0,200);
                   if(!issuesMap.has(key)){
-                    issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u + ` (resp${RESPONSIVE.zoomPercent})`]), count: 1, example: exHtml });
+                    issuesMap.set(key, { id: ruleId, help: v.help, impact: v.impact, selector, pages: new Set([u + ` (resp${RESPONSIVE.zoomPercent})`]), count: 1, example: exHtml, helpUrl: v.helpUrl, tags: v.tags });
                   } else {
                     const entry = issuesMap.get(key);
                     entry.pages.add(u + ` (resp${RESPONSIVE.zoomPercent})`);
@@ -516,7 +530,7 @@ if (require.main === module) {
         }
 
         const { generateAggregate } = require('./generate-report');
-        const issues = Array.from(issuesMap.values()).map(e=>({ id: e.id, help: e.help, impact: e.impact, selector: e.selector, pages: Array.from(e.pages), occurrences: e.count, example: e.example }));
+        const issues = Array.from(issuesMap.values()).map(e=>({ id: e.id, help: e.help, impact: e.impact, selector: e.selector, pages: Array.from(e.pages), occurrences: e.count, example: e.example, helpUrl: e.helpUrl, tags: e.tags }));
         const aggHtml = generateAggregate(aggregate, issues);
         let aggPath;
         if (argv.aggregateDir) {

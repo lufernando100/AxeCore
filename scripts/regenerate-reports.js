@@ -104,7 +104,8 @@ files.forEach(f => {
     htmlPath: htmlName,
     csvPath: csvName,
     violationsCount: violations.length,
-    passesCount: passes.length
+    passesCount: passes.length,
+    violations: violations.map(v => ({ id: v.id, help: v.help, impact: v.impact }))
   };
   
   // Fix paths for aggregate report links

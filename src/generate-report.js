@@ -151,14 +151,43 @@ function generateAggregate(reports = [], issues = []) {
         csvPath = jsonPath.replace('.json', '.csv');
     }
 
+    // Extract unique rule IDs for quick visualization
+    const uniqueRules = [...new Set((r.violations || []).map(v => v.id))];
+    
+    // Pastel palette for badges
+    const palette = [
+        { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' }, // Red
+        { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' }, // Orange
+        { bg: '#fef3c7', text: '#92400e', border: '#fde68a' }, // Amber
+        { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' }, // Green
+        { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' }, // Blue
+        { bg: '#e0e7ff', text: '#3730a3', border: '#c7d2fe' }, // Indigo
+        { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' }, // Purple
+        { bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' }, // Pink
+    ];
+
+    const rulesHtml = uniqueRules.length > 0 
+        ? `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px; max-width:350px;">` + 
+          uniqueRules.map(rule => {
+              let hash = 0;
+              for (let i = 0; i < rule.length; i++) hash = rule.charCodeAt(i) + ((hash << 5) - hash);
+              const color = palette[Math.abs(hash) % palette.length];
+              return `<span style="display:inline-block; background:${color.bg}; color:${color.text}; border:1px solid ${color.border}; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:600; font-family:system-ui;">${rule}</span>`;
+          }).join('') +
+          `</div>`
+        : '';
+
     return '<tr>' +
       '<td><div style="display:flex; align-items:center; gap:8px;">' + 
         ('<a href="' + escapeHtml(cleanUrl) + '" target="_blank">' + urlDisplay + '</a>') + 
         badge + 
       '</div></td>' +
-      '<td>' + (r.violationsCount || 0) + '</td>' +
-      '<td>' + (r.passesCount || 0) + '</td>' +
-      '<td>' + ('<a href="' + escapeHtml(csvPath) + '" download>CSV</a>') + '</td>' +
+      '<td>' + 
+        '<div style="font-weight:bold; color:#dc2626">' + (r.violationsCount || 0) + '</div>' + 
+        rulesHtml + 
+      '</td>' +
+      '<td style="color:#16a34a; font-weight:bold">' + (r.passesCount || 0) + '</td>' +
+      '<td>' + ('<a href="' + escapeHtml(csvPath) + '" download class="meta-pill">CSV</a>') + '</td>' +
       '</tr>';
   }).join('\n');
 
@@ -215,7 +244,7 @@ function generateAggregate(reports = [], issues = []) {
       '</div></details>';
   }).join('\n');
 
-  return `<!doctype html><html><head><meta charset="utf-8" /><title>Axe Aggregate Report</title><meta name="viewport" content="width=device-width,initial-scale=1" /><style>
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>Axe Aggregate Report (v2)</title><meta name="viewport" content="width=device-width,initial-scale=1" /><style>
 :root{--brand:#102b4e;--accent:#2c6ecb;--bg:#f0f2f5;--card:#ffffff;--text:#1f2937;--border:#e5e7eb;--critical:#dc2626;--serious:#ea580c;--moderate:#d97706;--minor:#2563eb}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;padding:24px;background:var(--bg);color:var(--text);line-height:1.6;margin:0}
 .app-container{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
@@ -495,7 +524,7 @@ a:hover{text-decoration:underline}
           const cells = r.querySelectorAll('td');
           if(cells.length > 0){
             let rawImp = cells[0].textContent.trim().toLowerCase();
-            const occ = parseInt(cells[3]?.innerText || '1') || 1;
+            const occ = parseInt(cells[4]?.innerText || '1') || 1;
             
             // Normalize impact
             let imp = 'minor';
@@ -519,8 +548,8 @@ a:hover{text-decoration:underline}
             ruleOccurrences += occ;
             if(impacts[imp] !== undefined) impacts[imp] += occ;
             
-            // Parse URLs from cell 2
-            const urlLinks = cells[2].querySelectorAll('a');
+            // Parse URLs from cell 3 (Pages)
+            const urlLinks = cells[3].querySelectorAll('a');
             urlLinks.forEach(a => uniqueUrls.add(a.href));
           }
         });
